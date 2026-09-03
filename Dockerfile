@@ -10,7 +10,8 @@ COPY settings.gradle .
 COPY src src
 
 RUN chmod +x gradlew
-RUN ./gradlew bootJar --no-daemon
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew bootJar --no-daemon
 
 FROM eclipse-temurin:25-jre AS runtime
 
