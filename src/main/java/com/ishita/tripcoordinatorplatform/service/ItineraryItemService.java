@@ -18,17 +18,20 @@ public class ItineraryItemService {
     private final ItineraryRepository itineraryRepository;
     private final ActivityRepository activityRepository;
     private final ReservationRepository reservationRepository;
+    private final ItineraryConflictService itineraryConflictService;
 
     public ItineraryItemService(
             ItineraryItemRepository itineraryItemRepository,
             ItineraryRepository itineraryRepository,
             ActivityRepository activityRepository,
-            ReservationRepository reservationRepository
+            ReservationRepository reservationRepository,
+            ItineraryConflictService itineraryConflictService
     ) {
         this.itineraryItemRepository = itineraryItemRepository;
         this.itineraryRepository = itineraryRepository;
         this.activityRepository = activityRepository;
         this.reservationRepository = reservationRepository;
+        this.itineraryConflictService = itineraryConflictService;
     }
 
     public ItineraryItem createItineraryItem(
@@ -45,30 +48,7 @@ public class ItineraryItemService {
             );
         }
 
-        List<ItineraryItem> existingItems =
-                itineraryItemRepository
-                        .findByItinerary_Trip_IdOrderByStartDateTime(tripId);
 
-        for (ItineraryItem existingItem : existingItems) {
-
-            if (item.getEndDateTime() != null
-                    && existingItem.getEndDateTime() != null) {
-
-                boolean overlaps =
-                        item.getStartDateTime()
-                                .isBefore(existingItem.getEndDateTime())
-                                &&
-                                item.getEndDateTime()
-                                        .isAfter(existingItem.getStartDateTime());
-
-                if (overlaps) {
-                    throw new ResponseStatusException(
-                            HttpStatus.CONFLICT,
-                            "Itinerary item overlaps with an existing item"
-                    );
-                }
-            }
-        }
 
         Itinerary itinerary = itineraryRepository.findByTrip_Id(tripId)
                 .orElseThrow(() ->
