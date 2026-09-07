@@ -17,4 +17,9 @@ public interface ItineraryConflictRepository extends JpaRepository<ItineraryConf
             Long tripId,
             Long tripMemberId
     );
+
+    List<ItineraryConflict> findByFirstItem_IdOrSecondItem_Id(
+            Long firstItemId,
+            Long secondItemId
+    );
 }

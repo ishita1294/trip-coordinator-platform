@@ -192,26 +192,6 @@ public class ItineraryItemService {
                 itineraryItemRepository
                         .findByItinerary_Trip_IdOrderByStartDateTime(tripId);
 
-        for (ItineraryItem otherItem : existingItems) {
-
-            if (otherItem.getId().equals(itemId)) {
-                continue;
-            }
-
-            boolean overlaps =
-                    updatedItem.getStartDateTime()
-                            .isBefore(otherItem.getEndDateTime())
-                            &&
-                            updatedItem.getEndDateTime()
-                                    .isAfter(otherItem.getStartDateTime());
-
-            if (overlaps) {
-                throw new ResponseStatusException(
-                        HttpStatus.CONFLICT,
-                        "Itinerary item overlaps with an existing item"
-                );
-            }
-        }
 
         if (activityId != null) {
 
@@ -259,8 +239,12 @@ public class ItineraryItemService {
         existingItem.setStartDateTime(updatedItem.getStartDateTime());
         existingItem.setEndDateTime(updatedItem.getEndDateTime());
 
-        return itineraryItemRepository.save(existingItem);
+        ItineraryItem savedItem = itineraryItemRepository.save(existingItem);
 
+
+        itineraryConflictService.reconcileConflictsForItem(tripId, savedItem.getId());
+
+        return savedItem;
     }
 
     public void deleteItineraryItem(Long tripId, Long itemId) {

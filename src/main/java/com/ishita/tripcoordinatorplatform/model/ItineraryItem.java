@@ -52,6 +52,10 @@ public class ItineraryItem {
     @Column(nullable = false)
     private LocalDateTime endDateTime;
 
+    public void setId(Long id) {
+        this.id = id;
+    }
+
     public LocalDateTime getEndDateTime() {
         return endDateTime;
     }

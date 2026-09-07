@@ -5,12 +5,14 @@ import com.ishita.tripcoordinatorplatform.repository.ItineraryConflictRepository
 import com.ishita.tripcoordinatorplatform.repository.ItineraryItemParticipantRepository;
 import com.ishita.tripcoordinatorplatform.repository.ItineraryItemRepository;
 import com.ishita.tripcoordinatorplatform.response.ItineraryConflictResponse;
+import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -124,6 +126,95 @@ public class ItineraryConflictService {
 
         return responses;
 
+    }
+
+    /**
+     * Rechecks conflicts involving an itinerary item after the item's schedule changes.
+     * Existing conflicts that no longer overlap are marked RESOLVED.
+     */
+    @Transactional
+    public void reconcileConflictsForItem(Long tripId, Long itemId) {
+
+        ItineraryItem currentItem = itineraryItemRepository
+                .findByIdAndItinerary_Trip_Id(itemId, tripId)
+                .orElseThrow(() -> new IllegalArgumentException("Itinerary item not found"));
+
+        List<ItineraryConflict> conflicts =
+                conflictRepository.findByFirstItem_IdOrSecondItem_Id(itemId, itemId);
+
+        for (ItineraryConflict conflict : conflicts) {
+
+            if (conflict.getStatus() != ItineraryConflictStatus.OPEN) {
+                continue;
+            }
+
+            ItineraryItem otherItem = conflict.getFirstItem().getId().equals(itemId)
+                            ? conflict.getSecondItem()
+                            : conflict.getFirstItem();
+
+            boolean stillOverlaps =
+                    currentItem.getStartDateTime().isBefore(otherItem.getEndDateTime())
+                            && currentItem.getEndDateTime().isAfter(otherItem.getStartDateTime());
+
+            if (!stillOverlaps) {
+                conflict.setStatus(ItineraryConflictStatus.RESOLVED);
+                conflictRepository.save(conflict);
+            }
+        }
+
+        List<ItineraryItemParticipant> participants = participantRepository.findByItineraryItem_Id(itemId);
+        for (ItineraryItemParticipant participant : participants) {
+
+            Long tripMemberId = participant.getTripMember().getId();
+
+            List<ItineraryItem> conflictingItems =
+                    findParticipantConflicts(
+                            tripId,
+                            itemId,
+                            tripMemberId
+                    );
+
+
+            for (ItineraryItem conflictingItem : conflictingItems) {
+                // Check whether this same participant already has a stored conflict
+                // between the updated item and the conflicting item.
+
+                // Look for an existing conflict for the same participant and item pair.
+// The item order may be reversed in the stored conflict.
+                Optional<ItineraryConflict> existingConflict = conflicts.stream()
+                        .filter(conflict ->
+                                conflict.getTripMember().getId().equals(tripMemberId)
+                                        &&
+                                        (
+                                                (conflict.getFirstItem().getId().equals(itemId)
+                                                        && conflict.getSecondItem().getId().equals(conflictingItem.getId()))
+                                                        ||
+                                                        (conflict.getSecondItem().getId().equals(itemId)
+                                                                && conflict.getFirstItem().getId().equals(conflictingItem.getId()))
+                                        )
+                        )
+                        .findFirst();
+
+                // If this item pair conflicted before and was resolved, reopen that
+// existing conflict instead of creating a duplicate database row.
+                if (existingConflict.isPresent()) {
+                    ItineraryConflict conflict = existingConflict.get();
+
+                    if (conflict.getStatus() == ItineraryConflictStatus.RESOLVED) {
+                        conflict.setStatus(ItineraryConflictStatus.OPEN);
+                        conflictRepository.save(conflict);
+                    }
+                } else {
+                    // No conflict has ever been stored for this participant and item pair,
+                    // so persist a new OPEN conflict.
+                    createMemberOverlapConflicts(
+                            currentItem,
+                            participant.getTripMember(),
+                            List.of(conflictingItem)
+                    );
+                }
+            }
+        }
     }
 
     private ItineraryConflictResponse toResponse(
