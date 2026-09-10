@@ -1,11 +1,14 @@
 package com.ishita.tripcoordinatorplatform.controller;
 
 import com.ishita.tripcoordinatorplatform.model.ItineraryConflict;
+import com.ishita.tripcoordinatorplatform.model.ItineraryItem;
+import com.ishita.tripcoordinatorplatform.request.ApplyConflictResolutionRequest;
 import com.ishita.tripcoordinatorplatform.response.ItineraryConflictResponse;
+import com.ishita.tripcoordinatorplatform.service.ConflictResolutionService;
 import com.ishita.tripcoordinatorplatform.service.ItineraryConflictService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.*;
+import com.ishita.tripcoordinatorplatform.ai.ConflictResolutionResponse;
 
 import java.util.List;
 
@@ -13,11 +16,14 @@ import java.util.List;
 public class ItineraryConflictController {
 
     private final ItineraryConflictService itineraryConflictService;
+    private final ConflictResolutionService conflictResolutionService;
 
     public ItineraryConflictController(
-            ItineraryConflictService itineraryConflictService
+            ItineraryConflictService itineraryConflictService,
+            ConflictResolutionService conflictResolutionService
     ) {
         this.itineraryConflictService = itineraryConflictService;
+        this.conflictResolutionService = conflictResolutionService;
     }
 
     @GetMapping("/trips/{tripId}/members/{tripMemberId}/itinerary/conflicts")
@@ -28,4 +34,37 @@ public class ItineraryConflictController {
         return itineraryConflictService
                 .getConflictsForMember(tripId, tripMemberId);
     }
+
+    @PostMapping(
+            "/trips/{tripId}/members/{tripMemberId}/itinerary/conflicts/{conflictId}/suggestions"
+    )
+    public ConflictResolutionResponse suggestResolutions(
+            @PathVariable Long tripId,
+            @PathVariable Long tripMemberId,
+            @PathVariable Long conflictId
+    ) {
+        return conflictResolutionService.suggestResolutions(
+                tripId,
+                tripMemberId,
+                conflictId
+        );
+    }
+
+    @PostMapping(
+            "/trips/{tripId}/members/{tripMemberId}/itinerary/conflicts/{conflictId}/apply"
+    )
+    public ItineraryItem applyConflictResolution(
+            @PathVariable Long tripId,
+            @PathVariable Long tripMemberId,
+            @PathVariable Long conflictId,
+            @Valid @RequestBody ApplyConflictResolutionRequest request
+    ) {
+        return conflictResolutionService.applyConflictResolution(
+                tripId,
+                tripMemberId,
+                conflictId,
+                request
+        );
+    }
+
 }

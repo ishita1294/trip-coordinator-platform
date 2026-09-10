@@ -1,6 +1,7 @@
 package com.ishita.tripcoordinatorplatform.controller;
 
 import com.ishita.tripcoordinatorplatform.model.ItineraryItem;
+import com.ishita.tripcoordinatorplatform.request.CreateItineraryItemRequest;
 import com.ishita.tripcoordinatorplatform.service.ItineraryItemService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -19,11 +20,9 @@ public class ItineraryItemController {
     @PostMapping("/trips/{tripId}/itinerary/items")
     public ItineraryItem createItineraryItem(
             @PathVariable Long tripId,
-            @RequestParam(required = false) Long activityId,
-            @RequestParam(required = false) Long reservationId,
-            @Valid @RequestBody ItineraryItem item
+            @Valid @RequestBody CreateItineraryItemRequest request
     ) {
-        return itineraryItemService.createItineraryItem(tripId,activityId,reservationId, item);
+        return itineraryItemService.createItineraryItem(tripId,request);
     }
 
     @GetMapping("/trips/{tripId}/itinerary/items")

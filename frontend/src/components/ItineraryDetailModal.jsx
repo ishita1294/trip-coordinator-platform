@@ -13,7 +13,17 @@ function formatLabel(value) {
   return String(value || 'Unknown').replaceAll('_', ' ');
 }
 
-function ItineraryDetailModal({ item, conflicts, onClose }) {
+function ItineraryDetailModal({ item,
+                                conflicts,
+                                resolutionSuggestions,
+                                visibleSuggestionConflictId,
+                                suggestionLoadingId,
+                                applyLoadingId,
+                                suggestionErrors,
+                                applyErrors,
+                                onSuggestResolutions,
+                                onApplyResolution,
+                                onClose }) {
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <section
@@ -54,18 +64,96 @@ function ItineraryDetailModal({ item, conflicts, onClose }) {
         {conflicts.length > 0 && (
           <div className="modal-conflicts">
             <h3>Conflicts With</h3>
-            {conflicts.map((conflict) => {
-              const otherTitle =
-                conflict.firstItemId === item.id
-                  ? conflict.secondItemTitle
-                  : conflict.firstItemTitle;
+              {conflicts.map((conflict) => {
+                  const otherTitle =
+                      conflict.firstItemId === item.id
+                          ? conflict.secondItemTitle
+                          : conflict.firstItemTitle;
 
-              return (
-                <p key={conflict.id}>
-                  {otherTitle || 'Untitled item'} ({formatLabel(conflict.type)})
-                </p>
-              );
-            })}
+                  const suggestions =
+                      resolutionSuggestions[conflict.id] || [];
+
+                  return (
+                      <div key={conflict.id} className="conflict-detail">
+                          <p>
+                              {otherTitle || 'Untitled item'} ({formatLabel(conflict.type)})
+                          </p>
+
+                          <button
+                              type="button"
+                              onClick={() => onSuggestResolutions(conflict.id)}
+                              disabled={suggestionLoadingId === conflict.id}
+                          >
+                              {suggestionLoadingId === conflict.id
+                                  ? 'Generating suggestions...'
+                                  : 'Suggest resolutions'}
+                          </button>
+
+                          {visibleSuggestionConflictId === conflict.id
+                              && suggestions.length > 0 && (
+                              <div className="resolution-suggestions">
+                                  <h4>Suggested Resolutions</h4>
+
+                                  {suggestions.map((suggestion, index) => {
+                                      const suggestedItemTitle =
+                                          suggestion.itemId === conflict.firstItemId
+                                              ? conflict.firstItemTitle
+                                              : suggestion.itemId === conflict.secondItemId
+                                                  ? conflict.secondItemTitle
+                                                  : `Item ${suggestion.itemId}`;
+
+                                      return (
+                                          <div
+                                              key={`${conflict.id}-${suggestion.itemId}-${index}`}
+                                              className="resolution-option"
+                                          >
+                                              <strong>{suggestedItemTitle}</strong>
+
+                                              <p>
+                                                  {formatDateTime(suggestion.proposedStartDateTime)}
+                                                  {' → '}
+                                                  {formatDateTime(suggestion.proposedEndDateTime)}
+                                              </p>
+
+                                              <p>{suggestion.reason}</p>
+
+                                              {suggestion.verificationRequired && (
+                                                  <p>
+                                                      Requires verification
+                                                      {suggestion.verificationReason
+                                                          ? `: ${suggestion.verificationReason}`
+                                                          : ''}
+                                                  </p>
+                                              )}
+                                              <button
+                                                  type="button"
+                                                  disabled={applyLoadingId === conflict.id}
+                                                  onClick={() =>
+                                                      onApplyResolution(conflict.id, suggestion)
+                                                  }
+                                              >
+                                                  Apply
+                                              </button>
+                                          </div>
+                                      );
+                                  })}
+                              </div>
+                          )}
+                          {suggestionErrors?.[conflict.id] && (
+                              <p className="status-message error">
+                                  {suggestionErrors[conflict.id]}
+                              </p>
+                          )}
+                          {applyErrors?.[conflict.id] && (
+                              <p className="status-message error">
+                                  {applyErrors[conflict.id]}
+                              </p>
+                          )}
+                      </div>
+                  );
+              })}
+
+
           </div>
         )}
       </section>

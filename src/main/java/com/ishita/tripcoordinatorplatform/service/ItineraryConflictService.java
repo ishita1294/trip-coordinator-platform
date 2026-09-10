@@ -5,11 +5,13 @@ import com.ishita.tripcoordinatorplatform.repository.ItineraryConflictRepository
 import com.ishita.tripcoordinatorplatform.repository.ItineraryItemParticipantRepository;
 import com.ishita.tripcoordinatorplatform.repository.ItineraryItemRepository;
 import com.ishita.tripcoordinatorplatform.response.ItineraryConflictResponse;
-import jakarta.transaction.Transactional;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -75,12 +77,12 @@ public class ItineraryConflictService {
                 continue;
             }
 
-            boolean overlaps =
-                    currentItem.getStartDateTime()
-                            .isBefore(otherItem.getEndDateTime())
-                            &&
-                            currentItem.getEndDateTime()
-                                    .isAfter(otherItem.getStartDateTime());
+            boolean overlaps = overlaps(
+                    currentItem.getStartDateTime(),
+                    currentItem.getEndDateTime(),
+                    otherItem.getStartDateTime(),
+                    otherItem.getEndDateTime()
+            );
 
             if (overlaps) {
                 conflictingItems.add(otherItem);
@@ -152,9 +154,12 @@ public class ItineraryConflictService {
                             ? conflict.getSecondItem()
                             : conflict.getFirstItem();
 
-            boolean stillOverlaps =
-                    currentItem.getStartDateTime().isBefore(otherItem.getEndDateTime())
-                            && currentItem.getEndDateTime().isAfter(otherItem.getStartDateTime());
+            boolean stillOverlaps = overlaps(
+                    currentItem.getStartDateTime(),
+                    currentItem.getEndDateTime(),
+                    otherItem.getStartDateTime(),
+                    otherItem.getEndDateTime()
+            );
 
             if (!stillOverlaps) {
                 conflict.setStatus(ItineraryConflictStatus.RESOLVED);
@@ -235,5 +240,74 @@ public class ItineraryConflictService {
         response.setSecondItemId(conflict.getSecondItem().getId());
         response.setSecondItemTitle(conflict.getSecondItem().getTitle());
         return response;
+    }
+
+    /**
+     * Checks whether moving an itinerary item to the proposed time
+     * would create a participant overlap with another itinerary item.
+     * The proposed time is only evaluated and is not saved.
+     */
+    public boolean wouldCreateParticipantConflict(
+            Long tripId,
+            Long itineraryItemId,
+            LocalDateTime proposedStartDateTime,
+            LocalDateTime proposedEndDateTime
+    ) {
+
+        // Also verifies that the item belongs to this trip.
+        itineraryItemRepository
+                .findByIdAndItinerary_Trip_Id(itineraryItemId, tripId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Itinerary item not found"
+                ));
+
+        List<ItineraryItemParticipant> participants =
+                participantRepository.findByItineraryItem_Id(itineraryItemId);
+
+        for (ItineraryItemParticipant participant : participants) {
+
+            Long tripMemberId = participant.getTripMember().getId();
+
+            List<ItineraryItemParticipant> memberParticipations =
+                    participantRepository.findByTripMember_Id(tripMemberId);
+
+            for (ItineraryItemParticipant memberParticipation : memberParticipations) {
+
+                ItineraryItem otherItem =
+                        memberParticipation.getItineraryItem();
+
+                if (otherItem.getId().equals(itineraryItemId)) {
+                    continue;
+                }
+
+                boolean overlaps = overlaps(
+                        proposedStartDateTime,
+                        proposedEndDateTime,
+                        otherItem.getStartDateTime(),
+                        otherItem.getEndDateTime()
+                );
+
+                if (overlaps) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determines whether two time ranges overlap.
+     * Touching boundaries, such as 10:00–11:00 and 11:00–12:00,
+     * are not considered an overlap.
+     */
+     boolean overlaps(
+            LocalDateTime firstStart,
+            LocalDateTime firstEnd,
+            LocalDateTime secondStart,
+            LocalDateTime secondEnd
+    ) {
+        return firstStart.isBefore(secondEnd)
+                && firstEnd.isAfter(secondStart);
     }
 }

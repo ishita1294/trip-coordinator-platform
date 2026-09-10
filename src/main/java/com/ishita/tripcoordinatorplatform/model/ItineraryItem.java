@@ -103,4 +103,15 @@ public class ItineraryItem {
     public void setTitle(String title) {
         this.title = title;
     }
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ItineraryItemFlexibility flexibility = ItineraryItemFlexibility.FLEXIBLE;
+
+    public ItineraryItemFlexibility getFlexibility() {
+        return flexibility;
+    }
+    public void setFlexibility(ItineraryItemFlexibility flexibility) {
+        this.flexibility = flexibility;
+    }
 }

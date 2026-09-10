@@ -13,8 +13,18 @@ function App() {
   const [error, setError] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
   const [selectedConflict, setSelectedConflict] = useState(null);
+  const [resolutionSuggestions, setResolutionSuggestions] = useState({});
+  const [suggestionLoadingId, setSuggestionLoadingId] = useState(null);
+  const [suggestionErrors, setSuggestionErrors] = useState({});
+  const [visibleSuggestionConflictId, setVisibleSuggestionConflictId] = useState(null);
+  const [applyLoadingId, setApplyLoadingId] = useState(null);
+  const [applyErrors, setApplyErrors] = useState({});
 
   useEffect(() => {
+    loadItinerary();
+  }, []);
+
+
     async function loadItinerary() {
       try {
         const [itemsResponse, conflictsResponse] = await Promise.all([
@@ -38,8 +48,6 @@ function App() {
       }
     }
 
-    loadItinerary();
-  }, []);
 
   const openConflicts = conflicts.filter((conflict) => conflict.status === 'OPEN');
   const sortedItems = [...items].sort(
@@ -65,6 +73,114 @@ function App() {
           conflict.secondItemId === selectedItem.id,
       )
     : [];
+
+  async function suggestResolutions(conflictId) {
+
+    setVisibleSuggestionConflictId(conflictId);
+    setSuggestionLoadingId(conflictId);
+    setSuggestionErrors((current) => ({
+      ...current,
+      [conflictId]: null,
+    }));
+    setApplyErrors((current) => ({
+      ...current,
+      [conflictId]: null,
+    }));
+
+    try {
+      const response = await fetch(
+          `/api/trips/1/members/1/itinerary/conflicts/${conflictId}/suggestions`,
+          {
+            method: 'POST',
+          },
+      );
+
+      if (!response.ok) {
+        throw new Error('Unable to generate resolution suggestions.');
+      }
+
+      const data = await response.json();
+
+      setResolutionSuggestions((current) => ({
+        ...current,
+        [conflictId]: Array.isArray(data.options) ? data.options : [],
+      }));
+    } catch (suggestionRequestError) {
+      setSuggestionErrors((current) => ({
+        ...current,
+        [conflictId]:
+        suggestionRequestError.message ||
+        'Unable to generate resolution suggestions.',
+      }));
+    } finally {
+      setSuggestionLoadingId(null);
+    }
+  }
+
+  function openItineraryItem(item) {
+    setSuggestionErrors({});
+    setApplyErrors({});
+    setSelectedItem(item);
+  }
+  async function applyConflictResolution(conflictId, suggestion) {
+
+    setApplyLoadingId(conflictId);
+    setApplyErrors((current) => ({
+      ...current,
+      [conflictId]: null,
+    }));
+    try {
+      const response = await fetch(
+          `/api/trips/1/members/1/itinerary/conflicts/${conflictId}/apply`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              itineraryItemId: suggestion.itemId,
+              proposedStartDateTime: suggestion.proposedStartDateTime,
+              proposedEndDateTime: suggestion.proposedEndDateTime,
+            }),
+          },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+
+        throw new Error(
+            errorData?.detail ||
+            errorData?.message ||
+            'Unable to apply resolution suggestion.'
+        );
+      }
+
+      const updatedItem = await response.json();
+
+      setSelectedItem((currentItem) =>
+          currentItem?.id === updatedItem.id
+              ? updatedItem
+              : currentItem
+      );
+
+      await loadItinerary();
+
+      return updatedItem;
+    } catch (error) {
+      setApplyErrors((current) => ({
+        ...current,
+        [conflictId]:
+        error.message || 'Unable to apply resolution suggestion.',
+      }));
+      setResolutionSuggestions((current) => ({
+        ...current,
+        [conflictId]: [],
+      }));
+      await loadItinerary();
+    } finally {
+      setApplyLoadingId(null);
+    }
+  }
 
   return (
     <main className="app-shell">
@@ -101,7 +217,7 @@ function App() {
                   hasOpenConflict={conflictedItemIds.has(item.id)}
                   isSelected={selectedItem?.id === item.id}
                   isHighlighted={selectedConflictItemIds.has(item.id)}
-                  onClick={() => setSelectedItem(item)}
+                  onClick={() => openItineraryItem(item)}
                 />
               ))}
             </div>
@@ -118,9 +234,22 @@ function App() {
 
           {selectedItem && (
             <ItineraryDetailModal
-              item={selectedItem}
-              conflicts={selectedItemConflicts}
-              onClose={() => setSelectedItem(null)}
+                item={selectedItem}
+                conflicts={selectedItemConflicts}
+                resolutionSuggestions={resolutionSuggestions}
+                visibleSuggestionConflictId={visibleSuggestionConflictId}
+                suggestionLoadingId={suggestionLoadingId}
+                applyLoadingId={applyLoadingId}
+                suggestionErrors={suggestionErrors}
+                applyErrors={applyErrors}
+                onSuggestResolutions={suggestResolutions}
+                onApplyResolution={applyConflictResolution}
+                onClose={() => {
+                  setSelectedItem(null);
+                  setVisibleSuggestionConflictId(null);
+                  setSuggestionErrors({});
+                  setApplyErrors({});
+                }}
             />
           )}
         </>
@@ -128,5 +257,7 @@ function App() {
     </main>
   );
 }
+
+
 
 export default App;
