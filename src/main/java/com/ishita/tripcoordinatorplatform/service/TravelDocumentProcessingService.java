@@ -2,6 +2,7 @@ package com.ishita.tripcoordinatorplatform.service;
 
 import com.ishita.tripcoordinatorplatform.ai.document.DocumentAiInput;
 import com.ishita.tripcoordinatorplatform.ai.document.DocumentClassification;
+import com.ishita.tripcoordinatorplatform.ai.document.DocumentClassifier;
 import com.ishita.tripcoordinatorplatform.model.TravelDocument;
 import com.ishita.tripcoordinatorplatform.model.TravelDocumentProcessingStatus;
 import com.ishita.tripcoordinatorplatform.model.TravelDocumentType;
@@ -20,16 +21,16 @@ import static com.ishita.tripcoordinatorplatform.model.TravelDocumentType.TRAIN_
 public class TravelDocumentProcessingService {
 
     private final TravelDocumentRepository travelDocumentRepository;
-    private final DocumentClassificationService documentClassificationService;
+    private final DocumentClassifier documentClassifier;
     private final DocumentStorage documentStorage;
 
     public TravelDocumentProcessingService(
             TravelDocumentRepository travelDocumentRepository,
-            DocumentClassificationService documentClassificationService,
+            DocumentClassifier documentClassifier,
             DocumentStorage documentStorage
     ) {
         this.travelDocumentRepository = travelDocumentRepository;
-        this.documentClassificationService = documentClassificationService;
+        this.documentClassifier = documentClassifier;
         this.documentStorage = documentStorage;
     }
 
@@ -65,7 +66,7 @@ public class TravelDocumentProcessingService {
             );
 
             DocumentClassification classification =
-                    documentClassificationService.classify(aiInput);
+                    documentClassifier.classify(aiInput);
 
             if (classification == DocumentClassification.UNSUPPORTED) {
                 document.setProcessingStatus(

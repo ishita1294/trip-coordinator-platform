@@ -14,12 +14,12 @@ import java.nio.charset.StandardCharsets;
 public class MockDocumentClassifier implements DocumentClassifier {
 
     @Override
-    public String classify(DocumentAiInput document) {
+    public DocumentClassification classify(DocumentAiInput document) {
 
         if (document == null
                 || document.content() == null
                 || document.content().length == 0) {
-            return "UNSUPPORTED";
+            return DocumentClassification.UNSUPPORTED;
         }
 
 
@@ -29,9 +29,9 @@ public class MockDocumentClassifier implements DocumentClassifier {
         String fileName = document.originalFileName().toLowerCase();
 
         if (fileName.contains("flight")) {
-            return "FLIGHT_CONFIRMATION";
+            return DocumentClassification.FLIGHT_CONFIRMATION;
         }
 
-        return "UNSUPPORTED";
+        return DocumentClassification.UNSUPPORTED;
     }
 }
