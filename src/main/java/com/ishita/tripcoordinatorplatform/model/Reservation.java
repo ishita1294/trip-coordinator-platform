@@ -94,6 +94,17 @@ public class Reservation {
 
     }
 
+    @Enumerated(EnumType.STRING)
+    private ReservationConfirmationType confirmationNumberType;
+
+    public ReservationConfirmationType getConfirmationNumberType() {
+        return confirmationNumberType;
+    }
+
+    public void setConfirmationNumberType(ReservationConfirmationType confirmationNumberType) {
+        this.confirmationNumberType = confirmationNumberType;
+    }
+
     private String location;
 
     public String getLocation() {

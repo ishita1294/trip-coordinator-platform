@@ -9,19 +9,47 @@ import java.util.Set;
 public class FlightExtractionValidator {
     public void validate(FlightExtractionResult result) {
 
-        // AI extraction must contain at least one flight segment
+        // AI extraction must contain at least one reservation
         // before it can move forward to user review.
         if (result == null
-                || result.segments() == null
-                || result.segments().isEmpty()) {
+                || result.reservations() == null
+                || result.reservations().isEmpty()) {
             throw new IllegalArgumentException(
-                    "Flight extraction must contain at least one segment"
+                    "Flight extraction must contain at least one reservation"
             );
         }
 
+        for (FlightReservationExtraction reservation : result.reservations()) {
+            if (reservation == null
+                    || reservation.segments() == null
+                    || reservation.segments().isEmpty()) {
+                throw new IllegalArgumentException(
+                        "Flight reservation extraction must contain at least one segment"
+                );
+            }
+
+            if ((reservation.confirmationNumber() == null)
+                    != (reservation.confirmationNumberType() == null)) {
+                throw new IllegalArgumentException(
+                        "Confirmation number and type must both be present or both be null"
+                );
+            }
+
+            if (reservation.confirmationNumber() != null
+                    && reservation.confirmationNumber().isBlank()) {
+                throw new IllegalArgumentException(
+                        "Confirmation number must not be blank"
+                );
+            }
+
+            validateSegments(reservation);
+        }
+    }
+
+    private void validateSegments(FlightReservationExtraction reservation) {
         Set<Integer> seenSegmentOrders = new HashSet<>();
 
-        for (FlightSegmentExtraction segment : result.segments()) {
+        for (FlightSegmentExtraction segment : reservation.segments()) {
 
             if (segment.segmentOrder() == null
                     || segment.segmentOrder() < 1) {
@@ -51,12 +79,7 @@ public class FlightExtractionValidator {
                 );
             }
 
-            if (segment.departureDateTime() == null
-                    || segment.arrivalDateTime() == null) {
-                throw new IllegalArgumentException(
-                        "Departure and arrival times are required"
-                );
-            }
+
         }
     }
 

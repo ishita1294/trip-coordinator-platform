@@ -23,7 +23,7 @@ public class TravelDocumentProcessingController {
     ) {
         // Temporary local-development trigger. Later, asynchronous processing
         // such as SQS will start this service instead of an HTTP endpoint.
-        return processingService.classifyDocument(
+        return processingService.processDocument(
                 tripId,
                 documentId
         );
