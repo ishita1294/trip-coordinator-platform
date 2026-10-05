@@ -1,29 +1,29 @@
 package com.ishita.tripcoordinatorplatform.controller;
 
 import com.ishita.tripcoordinatorplatform.response.TravelDocumentProcessingResponse;
-import com.ishita.tripcoordinatorplatform.service.TravelDocumentProcessingService;
+import com.ishita.tripcoordinatorplatform.service.DocumentProcessingQueueService;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/trips/{tripId}/documents")
 public class TravelDocumentProcessingController {
 
-    private final TravelDocumentProcessingService processingService;
+    private final DocumentProcessingQueueService queueService;
 
     public TravelDocumentProcessingController(
-            TravelDocumentProcessingService processingService
+            DocumentProcessingQueueService queueService
     ) {
-        this.processingService = processingService;
+        this.queueService = queueService;
     }
 
     @PostMapping("/{documentId}/process")
+    @ResponseStatus(HttpStatus.ACCEPTED)
     public TravelDocumentProcessingResponse processDocument(
             @PathVariable Long tripId,
             @PathVariable Long documentId
     ) {
-        // Temporary local-development trigger. Later, asynchronous processing
-        // such as SQS will start this service instead of an HTTP endpoint.
-        return processingService.processDocument(
+        return queueService.queueDocument(
                 tripId,
                 documentId
         );
