@@ -1,7 +1,6 @@
 package com.ishita.tripcoordinatorplatform.service;
 
 import com.ishita.tripcoordinatorplatform.model.ReservationConfirmationType;
-import com.ishita.tripcoordinatorplatform.request.ConfirmFlightDocumentRequest;
 import com.ishita.tripcoordinatorplatform.request.ReviewedFlightReservation;
 import com.ishita.tripcoordinatorplatform.request.ReviewedFlightSegment;
 import org.springframework.stereotype.Component;
@@ -9,21 +8,22 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.List;
 import java.util.Set;
 
 @Component
 public class FlightDocumentConfirmationValidator {
 
-    public void validate(ConfirmFlightDocumentRequest request) {
-        if (request == null) {
+    public void validate(List<ReviewedFlightReservation> reservations) {
+        if (reservations == null) {
             throw new IllegalArgumentException("Flight document confirmation request is required");
         }
-        if (request.reservations() == null || request.reservations().isEmpty()) {
+        if (reservations.isEmpty()) {
             throw new IllegalArgumentException("Flight confirmation must contain at least one reservation");
         }
 
         Set<Map.Entry<String, ReservationConfirmationType>> seenIdentifiers = new HashSet<>();
-        for (ReviewedFlightReservation reservation : request.reservations()) {
+        for (ReviewedFlightReservation reservation : reservations) {
             if (reservation == null) {
                 throw new IllegalArgumentException("Reviewed flight reservation must not be null");
             }

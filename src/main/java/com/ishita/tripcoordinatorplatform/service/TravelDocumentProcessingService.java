@@ -13,6 +13,9 @@ import com.ishita.tripcoordinatorplatform.model.TravelDocumentType;
 import com.ishita.tripcoordinatorplatform.repository.TravelDocumentRepository;
 import com.ishita.tripcoordinatorplatform.repository.TravelDocumentExtractionRepository;
 import com.ishita.tripcoordinatorplatform.response.TravelDocumentExtractionResponse;
+import com.ishita.tripcoordinatorplatform.response.TravelDocumentExtractionSummaryResponse;
+import com.ishita.tripcoordinatorplatform.response.TravelDocumentProcessingResponse;
+import com.ishita.tripcoordinatorplatform.response.TravelDocumentSummaryResponse;
 import com.ishita.tripcoordinatorplatform.storage.DocumentStorage;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -24,6 +27,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.List;
 
 import static com.ishita.tripcoordinatorplatform.model.TravelDocumentType.TRAIN_TICKET;
 
@@ -56,7 +60,7 @@ public class TravelDocumentProcessingService {
         this.jsonMapper = jsonMapper;
     }
 
-    public TravelDocument processDocument(
+    public TravelDocumentProcessingResponse processDocument(
             Long tripId,
             Long documentId
     ) {
@@ -68,6 +72,11 @@ public class TravelDocumentProcessingService {
                                 "Travel document not found"
                         )
                 );
+
+        if (document.getProcessingStatus() == TravelDocumentProcessingStatus.PROCESSED
+                || document.getProcessingStatus() == TravelDocumentProcessingStatus.PROCESSING) {
+            throw new IllegalArgumentException("Travel document cannot be processed in its current status");
+        }
 
         document.setProcessingStatus(
                 TravelDocumentProcessingStatus.PROCESSING
@@ -87,27 +96,25 @@ public class TravelDocumentProcessingService {
                     inputStream.readAllBytes()
             );
 
-            DocumentClassification classification =
-                    documentClassifier.classify(aiInput);
+            if (document.getDocumentType() == null) {
+                DocumentClassification classification = documentClassifier.classify(aiInput);
 
-            if (classification == DocumentClassification.UNSUPPORTED) {
-                document.setProcessingStatus(
-                        TravelDocumentProcessingStatus.FAILED
-                );
+                if (classification == DocumentClassification.UNSUPPORTED) {
+                    document.setProcessingStatus(TravelDocumentProcessingStatus.FAILED);
+                    return processingResponse(travelDocumentRepository.save(document), null);
+                }
 
-                return travelDocumentRepository.save(document);
+                document.setDocumentType(toTravelDocumentType(classification));
             }
 
-            document.setDocumentType(
-                    toTravelDocumentType(classification)
-            );
-
+            Long extractionId = null;
             if (document.getDocumentType() == TravelDocumentType.FLIGHT_CONFIRMATION) {
-                extractFlightDocument(document, aiInput);
+                extractionId = extractFlightDocument(document, aiInput);
+                document.setProcessingStatus(TravelDocumentProcessingStatus.REVIEW_REQUIRED);
             }
 
-            // Keep PROCESSING because the extraction still requires user review.
-            return travelDocumentRepository.save(document);
+            // Flight proposals wait for review; other document workflows remain unchanged.
+            return processingResponse(travelDocumentRepository.save(document), extractionId);
 
         } catch (IOException exception) {
             // A document that cannot be read cannot continue through processing.
@@ -130,6 +137,41 @@ public class TravelDocumentProcessingService {
 
             throw exception;
         }
+    }
+
+    public List<TravelDocumentSummaryResponse> getDocuments(Long tripId) {
+        return travelDocumentRepository.findAllByTrip_IdOrderByUploadedAtDescIdDesc(tripId).stream()
+                .map(document -> new TravelDocumentSummaryResponse(
+                        document.getId(), document.getOriginalFileName(), document.getContentType(),
+                        document.getProcessingStatus(), document.getDocumentType(), document.getUploadedAt()))
+                .toList();
+    }
+
+    public List<TravelDocumentExtractionSummaryResponse> getDocumentExtractions(Long tripId, Long documentId) {
+        travelDocumentRepository.findByIdAndTrip_Id(documentId, tripId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Travel document not found"));
+        return travelDocumentExtractionRepository
+                .findAllByTravelDocument_IdOrderByCreatedAtDescIdDesc(documentId).stream()
+                .map(extraction -> new TravelDocumentExtractionSummaryResponse(
+                        extraction.getId(), extraction.getCreatedAt()))
+                .toList();
+    }
+
+    private TravelDocumentProcessingResponse processingResponse(TravelDocument document, Long extractionId) {
+        return new TravelDocumentProcessingResponse(document.getId(), document.getProcessingStatus(),
+                document.getDocumentType(), extractionId);
+    }
+
+    public TravelDocumentExtractionResponse getCurrentDocumentExtraction(Long tripId, Long documentId) {
+        TravelDocument document = travelDocumentRepository.findByIdAndTrip_Id(documentId, tripId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Travel document not found"));
+        TravelDocumentExtraction extraction = travelDocumentExtractionRepository
+                .findFirstByTravelDocument_IdOrderByCreatedAtDescIdDesc(documentId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Travel document extraction not found"));
+        return extractionResponse(document, extraction);
     }
 
     public TravelDocumentExtractionResponse getDocumentExtraction(
@@ -155,6 +197,12 @@ public class TravelDocumentProcessingService {
                         )
                 );
 
+        return extractionResponse(document, extraction);
+    }
+
+    private TravelDocumentExtractionResponse extractionResponse(
+            TravelDocument document, TravelDocumentExtraction extraction
+    ) {
         JsonNode extractedData;
         try {
             extractedData = jsonMapper.readTree(extraction.getExtractedData());
@@ -174,7 +222,7 @@ public class TravelDocumentProcessingService {
         );
     }
 
-    private void extractFlightDocument(TravelDocument document, DocumentAiInput aiInput) {
+    private Long extractFlightDocument(TravelDocument document, DocumentAiInput aiInput) {
         FlightExtractionResult result = flightDocumentExtractor.extract(aiInput);
         flightExtractionValidator.validate(result);
         String extractedData = jsonMapper.writeValueAsString(result);
@@ -183,7 +231,7 @@ public class TravelDocumentProcessingService {
         extraction.setTravelDocument(document);
         extraction.setExtractedData(extractedData);
         extraction.setCreatedAt(Instant.now());
-        travelDocumentExtractionRepository.save(extraction);
+        return travelDocumentExtractionRepository.save(extraction).getId();
     }
 
     private TravelDocumentType toTravelDocumentType(

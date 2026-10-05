@@ -1,7 +1,6 @@
 package com.ishita.tripcoordinatorplatform.service;
 
 import com.ishita.tripcoordinatorplatform.model.ReservationConfirmationType;
-import com.ishita.tripcoordinatorplatform.request.ConfirmFlightDocumentRequest;
 import com.ishita.tripcoordinatorplatform.request.ReviewedFlightReservation;
 import com.ishita.tripcoordinatorplatform.request.ReviewedFlightSegment;
 import org.junit.jupiter.api.Test;
@@ -21,7 +20,7 @@ public class FlightDocumentConfirmationValidatorTest {
     @Test
     void rejectsReservationWhenLatestArrivalDateIsBeforeToday() {
         LocalDate today = LocalDate.now();
-        ConfirmFlightDocumentRequest request = request(
+        List<ReviewedFlightReservation> request = request(
                 segment(1, today.minusDays(2)),
                 segment(2, today.minusDays(1)));
 
@@ -33,7 +32,7 @@ public class FlightDocumentConfirmationValidatorTest {
     @Test
     void allowsReservationWhenLatestArrivalDateIsToday() {
         LocalDate today = LocalDate.now();
-        ConfirmFlightDocumentRequest request = request(segment(1, today));
+        List<ReviewedFlightReservation> request = request(segment(1, today));
 
         assertDoesNotThrow(() -> validator.validate(request));
     }
@@ -41,7 +40,7 @@ public class FlightDocumentConfirmationValidatorTest {
     @Test
     void allowsReservationWhenLatestArrivalDateIsInTheFuture() {
         LocalDate today = LocalDate.now();
-        ConfirmFlightDocumentRequest request = request(segment(1, today.plusDays(1)));
+        List<ReviewedFlightReservation> request = request(segment(1, today.plusDays(1)));
 
         assertDoesNotThrow(() -> validator.validate(request));
     }
@@ -49,16 +48,16 @@ public class FlightDocumentConfirmationValidatorTest {
     @Test
     void allowsPastSegmentWhenFinalSegmentArrivesInTheFuture() {
         LocalDate today = LocalDate.now();
-        ConfirmFlightDocumentRequest request = request(
+        List<ReviewedFlightReservation> request = request(
                 segment(1, today.minusDays(1)),
                 segment(2, today.plusDays(1)));
 
         assertDoesNotThrow(() -> validator.validate(request));
     }
 
-    private ConfirmFlightDocumentRequest request(ReviewedFlightSegment... segments) {
-        return new ConfirmFlightDocumentRequest(List.of(new ReviewedFlightReservation(
-                "ABC123", ReservationConfirmationType.PNR, List.of(segments))));
+    private List<ReviewedFlightReservation> request(ReviewedFlightSegment... segments) {
+        return List.of(new ReviewedFlightReservation(
+                "ABC123", ReservationConfirmationType.PNR, List.of(segments)));
     }
 
     private ReviewedFlightSegment segment(int order, LocalDate arrivalDate) {

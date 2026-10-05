@@ -1,6 +1,6 @@
 package com.ishita.tripcoordinatorplatform.controller;
 
-import com.ishita.tripcoordinatorplatform.model.TravelDocument;
+import com.ishita.tripcoordinatorplatform.response.TravelDocumentProcessingResponse;
 import com.ishita.tripcoordinatorplatform.service.TravelDocumentProcessingService;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,7 +17,7 @@ public class TravelDocumentProcessingController {
     }
 
     @PostMapping("/{documentId}/process")
-    public TravelDocument processDocument(
+    public TravelDocumentProcessingResponse processDocument(
             @PathVariable Long tripId,
             @PathVariable Long documentId
     ) {

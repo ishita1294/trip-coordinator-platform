@@ -21,7 +21,7 @@ public class OpenAiDocumentClassifier implements DocumentClassifier {
     private final OpenAIClient client;
     private final String model;
 
-    public OpenAiDocumentClassifier(@Value("${app.ai.openai.model}") String model) {
+    public OpenAiDocumentClassifier(@Value("${app.ai.openai.classification-model}") String model) {
         if (model == null || model.isBlank()) {
             throw new IllegalArgumentException("OpenAI model is required");
         }

@@ -64,7 +64,7 @@ public class OpenAiFlightDocumentExtractor implements FlightDocumentExtractor {
     private final JsonMapper jsonMapper;
 
     public OpenAiFlightDocumentExtractor(
-            @Value("${app.ai.openai.model}") String model,
+            @Value("${app.ai.openai.extraction-model}") String model,
             JsonMapper jsonMapper
     ) {
         if (model == null || model.isBlank()) {

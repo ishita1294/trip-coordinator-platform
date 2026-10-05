@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import ConflictTable from './components/ConflictTable.jsx';
 import ItineraryCard from './components/ItineraryCard.jsx';
 import ItineraryDetailModal from './components/ItineraryDetailModal.jsx';
+import TravelDocumentsTab from './components/TravelDocumentsTab.jsx';
 
 const itineraryUrl = '/api/trips/1/itinerary/items';
 const conflictsUrl = '/api/trips/1/members/1/itinerary/conflicts';
 
 function App() {
+  const [activeTab, setActiveTab] = useState('itinerary');
   const [items, setItems] = useState([]);
   const [conflicts, setConflicts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -187,9 +189,9 @@ function App() {
       <section className="page-header">
         <div>
           <p className="eyebrow">Trip 1</p>
-          <h1>Itinerary</h1>
+          <h1>{activeTab === 'itinerary' ? 'Itinerary' : 'Travel Documents'}</h1>
         </div>
-        <div className="summary">
+        <div className="summary" hidden={activeTab !== 'itinerary'}>
           <span>{sortedItems.length} items</span>
           <span>
             {openConflicts.length}{' '}
@@ -198,6 +200,16 @@ function App() {
         </div>
       </section>
 
+      <nav className="trip-tabs" aria-label="Trip sections">
+        <button type="button" aria-pressed={activeTab === 'itinerary'}
+                onClick={() => setActiveTab('itinerary')}>Itinerary</button>
+        <button type="button" aria-pressed={activeTab === 'documents'}
+                onClick={() => setActiveTab('documents')}>Travel Documents</button>
+      </nav>
+
+      {activeTab === 'documents' && <TravelDocumentsTab tripId={1} />}
+
+      <div hidden={activeTab !== 'itinerary'}>
       {isLoading && <p className="status-message">Loading itinerary...</p>}
       {error && <p className="status-message error">{error}</p>}
 
@@ -254,6 +266,7 @@ function App() {
           )}
         </>
       )}
+      </div>
     </main>
   );
 }
