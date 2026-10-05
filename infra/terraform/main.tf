@@ -31,3 +31,31 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "documents" {
     }
   }
 }
+
+resource "aws_sqs_queue" "document_processing_dlq" {
+  name                      = "${var.project_name}-${var.environment}-document-processing-dlq"
+  sqs_managed_sse_enabled   = true
+  message_retention_seconds = 1209600
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    Purpose     = "document-processing-dlq"
+  }
+}
+
+resource "aws_sqs_queue" "document_processing" {
+  name                    = "${var.project_name}-${var.environment}-document-processing"
+  sqs_managed_sse_enabled = true
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.document_processing_dlq.arn
+    maxReceiveCount     = 5
+  })
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    Purpose     = "document-processing"
+  }
+}

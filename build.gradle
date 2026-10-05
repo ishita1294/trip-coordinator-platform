@@ -32,6 +32,7 @@ dependencies {
     implementation platform('software.amazon.awssdk:bom:2.54.13')
     implementation 'software.amazon.awssdk:bedrockruntime'
     implementation 'software.amazon.awssdk:s3'
+    implementation 'software.amazon.awssdk:sqs'
     implementation 'com.openai:openai-java:4.70.0'
     runtimeOnly 'org.postgresql:postgresql'
 }
