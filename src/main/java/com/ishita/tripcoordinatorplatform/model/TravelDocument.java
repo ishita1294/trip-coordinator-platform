@@ -30,6 +30,17 @@ public class TravelDocument {
     @Column(nullable = false)
     private TravelDocumentProcessingStatus processingStatus;
 
+    @Column(name = "processing_started_at")
+    private Instant processingStartedAt;
+
+    public Instant getProcessingStartedAt() {
+        return processingStartedAt;
+    }
+
+    public void setProcessingStartedAt(Instant processingStartedAt) {
+        this.processingStartedAt = processingStartedAt;
+    }
+
     public Long getId() {
         return id;
     }

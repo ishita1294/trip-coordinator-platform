@@ -101,6 +101,7 @@ public class TravelDocumentProcessingService {
 
                 if (classification == DocumentClassification.UNSUPPORTED) {
                     document.setProcessingStatus(TravelDocumentProcessingStatus.FAILED);
+                    document.setProcessingStartedAt(null);
                     return processingResponse(travelDocumentRepository.save(document), null);
                 }
 
@@ -111,6 +112,7 @@ public class TravelDocumentProcessingService {
             if (document.getDocumentType() == TravelDocumentType.FLIGHT_CONFIRMATION) {
                 extractionId = extractFlightDocument(document, aiInput);
                 document.setProcessingStatus(TravelDocumentProcessingStatus.REVIEW_REQUIRED);
+                document.setProcessingStartedAt(null);
             }
 
             // Flight proposals wait for review; other document workflows remain unchanged.
@@ -121,6 +123,7 @@ public class TravelDocumentProcessingService {
             document.setProcessingStatus(
                     TravelDocumentProcessingStatus.FAILED
             );
+            document.setProcessingStartedAt(null);
             travelDocumentRepository.save(document);
 
             throw new IllegalStateException(
@@ -133,6 +136,7 @@ public class TravelDocumentProcessingService {
             document.setProcessingStatus(
                     TravelDocumentProcessingStatus.FAILED
             );
+            document.setProcessingStartedAt(null);
             travelDocumentRepository.save(document);
 
             throw exception;

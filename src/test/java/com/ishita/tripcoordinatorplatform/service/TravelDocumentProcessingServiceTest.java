@@ -81,6 +81,7 @@ class TravelDocumentProcessingServiceTest {
     void flightProcessResponseContainsIdOfNewlySavedExtraction() {
         prepareProcessing(DocumentClassification.FLIGHT_CONFIRMATION);
         assertNull(documents.findByIdAndTrip_Id(10L, 1L).orElseThrow().getDocumentType());
+        documents.findByIdAndTrip_Id(10L, 1L).orElseThrow().setProcessingStartedAt(Instant.now());
         LocalDate date = LocalDate.now().plusDays(1);
         FlightExtractionResult result = new FlightExtractionResult(List.of(new FlightReservationExtraction(
                 "ABC123", ConfirmationNumberType.PNR, List.of(new FlightSegmentExtraction(
@@ -105,6 +106,7 @@ class TravelDocumentProcessingServiceTest {
         assertEquals(103L, response.extractionId());
         assertEquals(TravelDocumentType.FLIGHT_CONFIRMATION, response.documentType());
         assertEquals(TravelDocumentProcessingStatus.REVIEW_REQUIRED, response.processingStatus());
+        assertNull(documents.findByIdAndTrip_Id(10L, 1L).orElseThrow().getProcessingStartedAt());
         verify(classifier).classify(any());
         verify(documents, times(2)).save(argThat(document ->
                 document.getDocumentType() == TravelDocumentType.FLIGHT_CONFIRMATION
@@ -165,12 +167,14 @@ class TravelDocumentProcessingServiceTest {
         document.setDocumentType(TravelDocumentType.FLIGHT_CONFIRMATION);
         document.setProcessingStatus(TravelDocumentProcessingStatus.REVIEW_REQUIRED);
         when(extractor.extract(any())).thenThrow(new IllegalStateException("Extraction failed"));
+        document.setProcessingStartedAt(Instant.now());
 
         assertThrows(IllegalStateException.class, () -> service.processDocument(1L, 10L));
 
         verifyNoInteractions(classifier, extractions);
         assertEquals(TravelDocumentType.FLIGHT_CONFIRMATION, document.getDocumentType());
         assertEquals(TravelDocumentProcessingStatus.FAILED, document.getProcessingStatus());
+        assertNull(document.getProcessingStartedAt());
         verify(documents, times(2)).save(document);
     }
 
