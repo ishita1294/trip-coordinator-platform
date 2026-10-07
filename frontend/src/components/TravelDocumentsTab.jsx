@@ -1,71 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-function formatTimestamp(value) {
-  return value ? new Date(value).toLocaleString() : 'Unknown date';
-}
-
-async function readResponse(response, fallback) {
-  const text = await response.text();
-  let data;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    if (response.ok) throw new Error('The server returned an invalid JSON response.');
-    throw new Error(text || fallback);
-  }
-  if (!response.ok) {
-    throw new Error(data?.detail || data?.message || data?.error ||
-      (typeof data === 'string' ? data : fallback));
-  }
-  return data;
-}
-
-const segmentFields = [
-  ['segmentOrder', 'Segment order'],
-  ['flightNumber', 'Flight number'],
-  ['departureAirportCode', 'Departure airport'],
-  ['departureDate', 'Departure date'],
-  ['departureTime', 'Departure time'],
-  ['arrivalAirportCode', 'Arrival airport'],
-  ['arrivalDate', 'Arrival date'],
-  ['arrivalTime', 'Arrival time'],
-];
-
-function isPresent(value) {
-  return value != null && (typeof value !== 'string' || value.trim() !== '');
-}
-
-function isComplete(proposal) {
-  return proposal.length > 0 && proposal.every((group) =>
-    isPresent(group.confirmationNumber) && isPresent(group.confirmationNumberType)
-    && group.segments.length > 0 && group.segments.every((segment) =>
-      segmentFields.every(([key]) => isPresent(segment[key]))));
-}
-
-function isHistorical(proposal) {
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  return proposal.some((group) => {
-    const latestArrivalDate = group.segments.reduce((latest, segment) =>
-      segment.arrivalDate != null && (latest == null || segment.arrivalDate > latest)
-        ? segment.arrivalDate : latest, null);
-    // ISO calendar dates compare directly; arrivals today are not historical.
-    return latestArrivalDate != null && latestArrivalDate < today;
-  });
-}
-
-function displayValue(key, value) {
-  if (!isPresent(value)) return 'Not extracted';
-  if (key.endsWith('Date') && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return new Date(`${value}T00:00:00`).toLocaleDateString(undefined,
-      { year: 'numeric', month: 'short', day: 'numeric' });
-  }
-  if (key.endsWith('Time') && /^\d{2}:\d{2}(:\d{2})?$/.test(value)) {
-    return new Date(`2000-01-01T${value}`).toLocaleTimeString(undefined,
-      { hour: 'numeric', minute: '2-digit' });
-  }
-  return value;
-}
+import { readResponse, requestUploadUrl, uploadToS3, completeUpload } from '../api/travelDocumentsApi';
+import {
+  segmentFields, formatTimestamp, isComplete, isHistorical, displayValue,
+} from '../utils/travelDocumentUtils';
 
 function TravelDocumentsTab({ tripId }) {
   const baseUrl = `/api/trips/${tripId}/documents`;
@@ -79,15 +17,18 @@ function TravelDocumentsTab({ tripId }) {
   const [reviewError, setReviewError] = useState('');
   const [proposal, setProposal] = useState([]);
   const [busy, setBusy] = useState({});
+  const [queueRequests, setQueueRequests] = useState({});
+  const documentRefresh = useRef(null);
+  const documentListController = useRef(null);
   const pendingActions = useRef(new Set());
   const reviewVersion = useRef(0);
-  const actionVersion = useRef(0);
   const [actionErrors, setActionErrors] = useState({});
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
   useEffect(() => {
     const controller = new AbortController();
+    documentListController.current = { baseUrl, controller };
     setLoading(true);
     fetch(baseUrl, { signal: controller.signal })
       .then((response) => readResponse(response, 'Unable to load documents.'))
@@ -113,13 +54,50 @@ function TravelDocumentsTab({ tripId }) {
     return () => { document.body.style.overflow = previousOverflow; };
   }, [reviewOpen]);
 
-  async function refreshDocuments() {
-    const data = await readResponse(await fetch(baseUrl), 'Unable to refresh documents.');
-    setDocuments(Array.isArray(data) ? data : []);
-  }
+  const refreshDocuments = useCallback(async () => {
+    const selection = documentListController.current;
+    if (selection?.baseUrl !== baseUrl) return;
+    // Serialize polling and action refreshes; each action still gets a fresh request.
+    while (documentRefresh.current) {
+      try { await documentRefresh.current; } catch { /* The originating caller handles its error. */ }
+    }
+    if (selection.controller.signal.aborted) return;
+    const request = (async () => {
+      const data = await readResponse(await fetch(baseUrl, { signal: selection.controller.signal }),
+        'Unable to refresh documents.');
+      if (!selection.controller.signal.aborted) setDocuments(Array.isArray(data) ? data : []);
+    })();
+    documentRefresh.current = request;
+    try {
+      await request;
+    } finally {
+      if (documentRefresh.current === request) documentRefresh.current = null;
+    }
+  }, [baseUrl]);
+
+  const hasActiveDocuments = documents.some((document) =>
+    ['QUEUED', 'PROCESSING'].includes(document.processingStatus));
+
+  useEffect(() => {
+    if (!hasActiveDocuments) return;
+    let stopped = false;
+    let timer;
+    async function poll() {
+      try {
+        const changingStatus = [...pendingActions.current].some((action) =>
+          action.startsWith('process-') || action === 'confirm');
+        if (!documentRefresh.current && !changingStatus) await refreshDocuments();
+      } catch (requestError) {
+        if (!stopped) console.warn('Unable to refresh document processing status:', requestError.message);
+      } finally {
+        if (!stopped) timer = setTimeout(poll, 2500);
+      }
+    }
+    timer = setTimeout(poll, 2500);
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [hasActiveDocuments, refreshDocuments]);
 
   function clearMessages() {
-    actionVersion.current += 1;
     setActionErrors({});
     setError('');
     setMessage('');
@@ -175,11 +153,9 @@ function TravelDocumentsTab({ tripId }) {
     pendingActions.current.add(action);
     setBusy((current) => ({ ...current, [action]: true }));
     clearMessages();
-    const version = actionVersion.current;
     try {
       await callback();
     } catch (requestError) {
-      if (version !== actionVersion.current) return;
       setActionErrors((current) => ({
         ...current, [action]: requestError.message || 'Unable to complete this action.',
       }));
@@ -193,20 +169,25 @@ function TravelDocumentsTab({ tripId }) {
     event.preventDefault();
     if (!file) return;
     runAction('upload', async () => {
-      const body = new FormData();
-      body.append('file', file);
-      await readResponse(await fetch(baseUrl, { method: 'POST', body }), 'Unable to upload document.');
+      const contentType = file.type;
+      const initiation = await requestUploadUrl(baseUrl, file.name, contentType, file.size);
+      await uploadToS3(initiation.uploadUrl, file, contentType);
+      await completeUpload(baseUrl, initiation.storageKey);
       setFile(null);
       if (fileInput.current) fileInput.current.value = '';
-      await refreshDocuments();
-      setMessage('Document uploaded.');
+      setMessage('Document uploaded successfully.');
+      try {
+        await refreshDocuments();
+      } catch (refreshError) {
+        setError(`Document uploaded successfully, but the document list could not be refreshed: ${refreshError.message}`);
+      }
     });
   }
 
   function processDocument(documentId) {
     closeReview();
-    setSelectedDocumentId(documentId);
     runAction(`process-${documentId}`, async () => {
+      setQueueRequests((current) => ({ ...current, [documentId]: true }));
       let data;
       try {
         data = await readResponse(
@@ -216,17 +197,16 @@ function TravelDocumentsTab({ tripId }) {
           throw new Error('The server returned a processing result for a different document.');
         }
       } catch (requestError) {
-        // Refresh FAILED status if available without hiding the original processing error.
+        setQueueRequests((current) => ({ ...current, [documentId]: false }));
+        // Refresh document status without hiding the original queueing request error.
         try { await refreshDocuments(); } catch { /* The processing error remains the relevant failure. */ }
         throw requestError;
       }
+      setQueueRequests((current) => ({ ...current, [documentId]: false }));
       setDocuments((current) => current.map((document) => document.id === documentId
         ? { ...document, processingStatus: data.processingStatus, documentType: data.documentType }
         : document));
       await refreshDocuments();
-      if (data.processingStatus === 'FAILED') {
-        throw new Error('Document processing failed. Retry processing the document.');
-      }
       // Review stays closed; the user explicitly opens the new current proposal.
     });
   }
@@ -257,8 +237,9 @@ function TravelDocumentsTab({ tripId }) {
 
   const historical = isHistorical(proposal);
   const selectedDocument = documents.find((document) => document.id === selectedDocumentId);
+  const readOnly = selectedDocument?.processingStatus === 'PROCESSED';
   const statusLabels = { UPLOADED: 'Uploaded', PROCESSING: 'Processing...',
-    REVIEW_REQUIRED: 'Review required', FAILED: 'Processing failed', PROCESSED: 'Processed' };
+    REVIEW_REQUIRED: 'Review required', FAILED: 'Processing failed', PROCESSED: 'Processed', QUEUED: 'Queued'};
 
   return (
     <section className="travel-documents" aria-label="Travel Documents">
@@ -285,7 +266,8 @@ function TravelDocumentsTab({ tripId }) {
             <article className="document-card" key={document.id}>
               <h2>{document.originalFileName}</h2>
               <p className="document-status">
-                {processing ? 'Processing...' : statusLabels[document.processingStatus] || 'Unknown status'}
+                {queueRequests[document.id] ? 'Queuing...'
+                  : statusLabels[document.processingStatus] || 'Unknown status'}
               </p>
               <p className="document-status">Uploaded {formatTimestamp(document.uploadedAt)}</p>
               <div className="document-actions">
@@ -293,6 +275,11 @@ function TravelDocumentsTab({ tripId }) {
                   <button type="button" disabled={!!busy.confirm
                     || (selectedDocumentId === document.id && reviewState === 'LOADING')}
                           onClick={() => loadCurrentExtraction(document.id)}>Review extracted details</button>
+                )}
+                {document.processingStatus === 'PROCESSED' && (
+                  <button type="button" disabled={!!busy.confirm
+                    || (selectedDocumentId === document.id && reviewState === 'LOADING')}
+                          onClick={() => loadCurrentExtraction(document.id)}>View details</button>
                 )}
                 {!processing && ['UPLOADED', 'FAILED', 'REVIEW_REQUIRED'].includes(document.processingStatus) && (
                   <button type="button" disabled={!!busy.confirm}
@@ -325,8 +312,8 @@ function TravelDocumentsTab({ tripId }) {
                 }}>
           <header className="document-review-header">
             <div>
-              <h2 id="document-review-title">Review extracted details</h2>
-              <p>{selectedDocument?.originalFileName}</p>
+              <h2 id="document-review-title">{readOnly ? 'Flight details' : 'Review extracted details'}</h2>
+              {!readOnly && <p>{selectedDocument?.originalFileName}</p>}
             </div>
             <button type="button" aria-label="Close review" disabled={!!busy.confirm}
                     onClick={closeReview}>×</button>
@@ -334,14 +321,14 @@ function TravelDocumentsTab({ tripId }) {
           <div className="document-review-body">
             {reviewState === 'LOADING' && <p className="status-message" role="status">Loading...</p>}
             {reviewState === 'ERROR' && reviewError && <p className="status-message error" role="alert">{reviewError}</p>}
-            {reviewState === 'READY' && selectedDocument?.processingStatus === 'REVIEW_REQUIRED' && (
+            {reviewState === 'READY' && (selectedDocument?.processingStatus === 'REVIEW_REQUIRED' || readOnly) && (
               <form className="flight-review" onSubmit={confirm}>
-                <p>Review the AI extraction before saving it exactly as shown.
-                  If details are missing or wrong, reprocess the document.</p>
-                {!isComplete(proposal) && <p className="status-message error" role="alert">
+                {!readOnly && <p>Review the AI extraction before saving it exactly as shown.
+                  If details are missing or wrong, reprocess the document.</p>}
+                {!readOnly && !isComplete(proposal) && <p className="status-message error" role="alert">
                   Some required flight details could not be extracted from this document.
                 </p>}
-                {historical && <p className="status-message error" role="alert">
+                {!readOnly && historical && <p className="status-message error" role="alert">
                   This flight reservation is historical and cannot be saved.
                 </p>}
                 {proposal.map((group, groupIndex) => (
@@ -364,11 +351,11 @@ function TravelDocumentsTab({ tripId }) {
                     ))}
                   </fieldset>
                 ))}
-                {isComplete(proposal) && <button type="submit" disabled={!!busy.confirm || historical}>
+                {!readOnly && isComplete(proposal) && <button type="submit" disabled={!!busy.confirm || historical}>
                   {busy.confirm ? 'Confirming...' : 'Confirm & Save'}
                 </button>}
-                <button type="button" disabled={!!busy.confirm || !!busy[`process-${selectedDocumentId}`]}
-                        onClick={() => processDocument(selectedDocumentId)}>Reprocess</button>
+                {!readOnly && <button type="button" disabled={!!busy.confirm || !!busy[`process-${selectedDocumentId}`]}
+                        onClick={() => processDocument(selectedDocumentId)}>Reprocess</button>}
                 {actionErrors.confirm && <p className="status-message error" role="alert">{actionErrors.confirm}</p>}
               </form>
             )}
