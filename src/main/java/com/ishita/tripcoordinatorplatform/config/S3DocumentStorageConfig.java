@@ -7,10 +7,24 @@ import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 @Configuration
 @ConditionalOnProperty(name = "app.document-storage.provider", havingValue = "s3")
 public class S3DocumentStorageConfig {
+
+    @Bean(destroyMethod = "close")
+    public S3Presigner s3Presigner(
+            @Value("${app.document-storage.s3.region:us-east-1}") String region
+    ) {
+        if (region == null || region.isBlank()) {
+            throw new IllegalStateException("app.document-storage.s3.region is required when using S3 storage");
+        }
+        return S3Presigner.builder()
+                .region(Region.of(region))
+                .credentialsProvider(DefaultCredentialsProvider.builder().build())
+                .build();
+    }
 
     @Bean(destroyMethod = "close")
     public S3Client s3Client(

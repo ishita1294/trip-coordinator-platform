@@ -20,7 +20,7 @@ public class TravelDocument {
     @Column(nullable = false)
     private String originalFileName;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String storageKey;
 
     @Column(nullable = false)

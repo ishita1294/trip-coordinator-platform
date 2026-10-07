@@ -13,6 +13,8 @@ import java.time.Instant;
 
 public interface TravelDocumentRepository extends JpaRepository<TravelDocument, Long> {
 
+    Optional<TravelDocument> findByStorageKey(String storageKey);
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
             UPDATE TravelDocument document
