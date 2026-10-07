@@ -24,3 +24,17 @@ variable "environment" {
     error_message = "environment must be 1–8 lowercase letters, digits, or hyphens, starting with a letter."
   }
 }
+
+variable "developer_cidr" {
+  description = "Trusted developer public IPv4 CIDR for temporary dev RDS access. Use /24 through /32."
+  type        = string
+
+  validation {
+    condition = (
+      can(cidrnetmask(var.developer_cidr)) &&
+      can(regex("/(24|25|26|27|28|29|30|31|32)$", var.developer_cidr)) &&
+      var.developer_cidr != "0.0.0.0/32"
+    )
+    error_message = "developer_cidr must be a valid IPv4 CIDR with a /24 through /32 mask."
+  }
+}
