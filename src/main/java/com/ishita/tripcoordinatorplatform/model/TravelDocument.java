@@ -4,6 +4,7 @@ package com.ishita.tripcoordinatorplatform.model;
 import jakarta.persistence.*;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "travel_documents")
@@ -32,6 +33,17 @@ public class TravelDocument {
 
     @Column(name = "processing_started_at")
     private Instant processingStartedAt;
+
+    @Column(name = "processing_attempt_id")
+    private UUID processingAttemptId;
+
+    public UUID getProcessingAttemptId() {
+        return processingAttemptId;
+    }
+
+    public void setProcessingAttemptId(UUID processingAttemptId) {
+        this.processingAttemptId = processingAttemptId;
+    }
 
     public Instant getProcessingStartedAt() {
         return processingStartedAt;

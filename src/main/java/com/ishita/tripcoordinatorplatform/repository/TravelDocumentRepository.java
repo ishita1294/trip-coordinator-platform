@@ -10,6 +10,8 @@ import org.springframework.data.repository.query.Param;
 import java.util.Optional;
 import java.util.List;
 import java.time.Instant;
+import java.util.UUID;
+import com.ishita.tripcoordinatorplatform.model.TravelDocumentType;
 
 public interface TravelDocumentRepository extends JpaRepository<TravelDocument, Long> {
 
@@ -18,39 +20,64 @@ public interface TravelDocumentRepository extends JpaRepository<TravelDocument, 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
             UPDATE TravelDocument document
-            SET document.processingStatus = PROCESSING,
-                document.processingStartedAt = :now
+            SET document.processingStatus = :failureStatus,
+                document.processingStartedAt = NULL,
+                document.processingAttemptId = NULL
             WHERE document.id = :documentId
-              AND document.processingStatus = QUEUED
+              AND document.processingStatus = PROCESSING
+              AND document.processingAttemptId = :attemptId
             """)
-    int claimQueuedForProcessing(@Param("documentId") Long documentId, @Param("now") Instant now);
+    int failProcessingAttempt(@Param("documentId") Long documentId,
+                              @Param("attemptId") UUID attemptId,
+                              @Param("failureStatus") TravelDocumentProcessingStatus failureStatus);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
             UPDATE TravelDocument document
-            SET document.processingStartedAt = :now
+            SET document.processingStatus = PROCESSING,
+                document.processingStartedAt = :now,
+                document.processingAttemptId = :attemptId
+            WHERE document.id = :documentId
+              AND document.processingStatus = QUEUED
+            """)
+    int claimQueuedForProcessing(@Param("documentId") Long documentId, @Param("now") Instant now,
+                                 @Param("attemptId") UUID attemptId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            UPDATE TravelDocument document
+            SET document.processingStartedAt = :now,
+                document.processingAttemptId = :attemptId
             WHERE document.id = :documentId
               AND document.processingStatus = PROCESSING
               AND document.processingStartedAt <= :staleBefore
             """)
     int reclaimStaleProcessing(@Param("documentId") Long documentId,
                                @Param("now") Instant now,
-                               @Param("staleBefore") Instant staleBefore);
+                               @Param("staleBefore") Instant staleBefore,
+                               @Param("attemptId") UUID attemptId);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
             UPDATE TravelDocument document
-            SET document.processingStartedAt = NULL
+            SET document.processingStatus = REVIEW_REQUIRED,
+                document.documentType = :documentType,
+                document.processingStartedAt = NULL,
+                document.processingAttemptId = NULL
             WHERE document.id = :documentId
-              AND document.processingStatus <> PROCESSING
-              AND document.processingStartedAt IS NOT NULL
+              AND document.processingStatus = PROCESSING
+              AND document.processingAttemptId = :attemptId
             """)
-    int clearCompletedProcessingLease(@Param("documentId") Long documentId);
+    int completeProcessingAttempt(@Param("documentId") Long documentId,
+                                  @Param("attemptId") UUID attemptId,
+                                  @Param("documentType") TravelDocumentType documentType);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
             UPDATE TravelDocument document
-            SET document.processingStatus = :queuedStatus
+            SET document.processingStatus = :queuedStatus,
+                document.processingStartedAt = NULL,
+                document.processingAttemptId = NULL
             WHERE document.id = :documentId
               AND document.trip.id = :tripId
               AND document.processingStatus IN :allowedStatuses

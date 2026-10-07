@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.util.UUID;
 
 @Service
 public class DocumentProcessingWorkerClaimService {
@@ -37,21 +38,21 @@ public class DocumentProcessingWorkerClaimService {
     @Transactional
     public DocumentProcessingWorkerClaimResult claim(Long documentId) {
         var now = clock.instant();
-        if (documents.claimQueuedForProcessing(documentId, now) == 1) {
-            return DocumentProcessingWorkerClaimResult.CLAIMED;
+        UUID attemptId = UUID.randomUUID();
+        if (documents.claimQueuedForProcessing(documentId, now, attemptId) == 1) {
+            return new DocumentProcessingWorkerClaimResult(DocumentProcessingWorkerClaimResult.Status.CLAIMED, attemptId);
         }
-        if (documents.reclaimStaleProcessing(documentId, now, now.minus(leaseDuration)) == 1) {
-            return DocumentProcessingWorkerClaimResult.CLAIMED;
+        UUID reclaimedAttemptId = UUID.randomUUID();
+        if (documents.reclaimStaleProcessing(documentId, now, now.minus(leaseDuration), reclaimedAttemptId) == 1) {
+            return new DocumentProcessingWorkerClaimResult(DocumentProcessingWorkerClaimResult.Status.CLAIMED, reclaimedAttemptId);
         }
         return documents.findById(documentId)
-                .filter(document -> document.getProcessingStatus() == TravelDocumentProcessingStatus.PROCESSING)
-                .map(document -> DocumentProcessingWorkerClaimResult.ALREADY_ACTIVE)
+                .map(document -> switch (document.getProcessingStatus()) {
+                    case PROCESSING -> DocumentProcessingWorkerClaimResult.ALREADY_ACTIVE;
+                    case REVIEW_REQUIRED, PROCESSED, FAILED -> DocumentProcessingWorkerClaimResult.TERMINAL;
+                    default -> DocumentProcessingWorkerClaimResult.NOT_PROCESSABLE;
+                })
                 .orElse(DocumentProcessingWorkerClaimResult.NOT_PROCESSABLE);
     }
 
-    @Transactional
-    public void clearCompletedLease(Long documentId) {
-        // Never clear ownership while a document is still PROCESSING.
-        documents.clearCompletedProcessingLease(documentId);
-    }
 }

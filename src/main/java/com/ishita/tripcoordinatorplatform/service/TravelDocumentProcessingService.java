@@ -19,6 +19,8 @@ import com.ishita.tripcoordinatorplatform.response.TravelDocumentSummaryResponse
 import com.ishita.tripcoordinatorplatform.storage.DocumentStorage;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
@@ -26,7 +28,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Instant;
+import java.util.UUID;
+import java.util.Objects;
 import java.util.List;
 
 import static com.ishita.tripcoordinatorplatform.model.TravelDocumentType.TRAIN_TICKET;
@@ -41,6 +44,7 @@ public class TravelDocumentProcessingService {
     private final FlightExtractionValidator flightExtractionValidator;
     private final TravelDocumentExtractionRepository travelDocumentExtractionRepository;
     private final JsonMapper jsonMapper;
+    private final DocumentProcessingFinalizationService finalizationService;
 
     public TravelDocumentProcessingService(
             TravelDocumentRepository travelDocumentRepository,
@@ -49,7 +53,8 @@ public class TravelDocumentProcessingService {
             FlightDocumentExtractor flightDocumentExtractor,
             FlightExtractionValidator flightExtractionValidator,
             TravelDocumentExtractionRepository travelDocumentExtractionRepository,
-            JsonMapper jsonMapper
+            JsonMapper jsonMapper,
+            DocumentProcessingFinalizationService finalizationService
     ) {
         this.travelDocumentRepository = travelDocumentRepository;
         this.documentClassifier = documentClassifier;
@@ -58,89 +63,49 @@ public class TravelDocumentProcessingService {
         this.flightExtractionValidator = flightExtractionValidator;
         this.travelDocumentExtractionRepository = travelDocumentExtractionRepository;
         this.jsonMapper = jsonMapper;
+        this.finalizationService = finalizationService;
     }
 
-    public TravelDocumentProcessingResponse processDocument(
-            Long tripId,
-            Long documentId
-    ) {
-        TravelDocument document = travelDocumentRepository
-                .findByIdAndTrip_Id(documentId, tripId)
-                .orElseThrow(() ->
-                        new ResponseStatusException(
-                                HttpStatus.NOT_FOUND,
-                                "Travel document not found"
-                        )
-                );
-
-        if (document.getProcessingStatus() == TravelDocumentProcessingStatus.PROCESSED
-                || document.getProcessingStatus() == TravelDocumentProcessingStatus.PROCESSING) {
-            throw new IllegalArgumentException("Travel document cannot be processed in its current status");
+    // Call only after a successful claim, using the exact token returned by that claim.
+    // Storage, AI calls, validation, and serialization run outside the finalization transaction.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public TravelDocumentProcessingResponse processClaimedDocument(Long documentId, UUID attemptId) {
+        Objects.requireNonNull(attemptId, "Processing attempt ID is required");
+        TravelDocument document = travelDocumentRepository.findById(documentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Travel document not found"));
+        if (document.getProcessingStatus() != TravelDocumentProcessingStatus.PROCESSING
+                || !attemptId.equals(document.getProcessingAttemptId())) {
+            throw DocumentProcessingException.ownershipLost();
         }
 
-        document.setProcessingStatus(
-                TravelDocumentProcessingStatus.PROCESSING
-        );
-        travelDocumentRepository.save(document);
-
-
-        try (
-                // Open the original file using the storage key saved at upload time.
-                InputStream inputStream =
-                        documentStorage.open(document.getStorageKey())
-        ) {
-            // Build the AI input from the actual stored document, not pre-extracted text.
-            DocumentAiInput aiInput = new DocumentAiInput(
-                    document.getOriginalFileName(),
-                    document.getContentType(),
-                    inputStream.readAllBytes()
-            );
-
-            if (document.getDocumentType() == null) {
-                DocumentClassification classification = documentClassifier.classify(aiInput);
-
-                if (classification == DocumentClassification.UNSUPPORTED) {
-                    document.setProcessingStatus(TravelDocumentProcessingStatus.FAILED);
-                    document.setProcessingStartedAt(null);
-                    return processingResponse(travelDocumentRepository.save(document), null);
-                }
-
-                document.setDocumentType(toTravelDocumentType(classification));
+        if (document.getContentType() == null
+                || !List.of("application/pdf", "image/jpeg", "image/png").contains(document.getContentType())) {
+            throw DocumentProcessingException.permanentInput("Only PDF, JPEG, and PNG documents are supported");
+        }
+        TravelDocumentType documentType = document.getDocumentType();
+        String extractedData;
+        try (InputStream inputStream = documentStorage.open(document.getStorageKey())) {
+            DocumentAiInput aiInput = new DocumentAiInput(document.getOriginalFileName(),
+                    document.getContentType(), inputStream.readAllBytes());
+            if (aiInput.content().length == 0) {
+                throw DocumentProcessingException.permanentInput("Stored document is empty and cannot be processed");
+            }
+            if (documentType == null) {
+                documentType = toTravelDocumentType(documentClassifier.classify(aiInput));
+            }
+            if (documentType != TravelDocumentType.FLIGHT_CONFIRMATION) {
+                throw new IllegalStateException("Extraction is not implemented for this document type");
             }
 
-            Long extractionId = null;
-            if (document.getDocumentType() == TravelDocumentType.FLIGHT_CONFIRMATION) {
-                extractionId = extractFlightDocument(document, aiInput);
-                document.setProcessingStatus(TravelDocumentProcessingStatus.REVIEW_REQUIRED);
-                document.setProcessingStartedAt(null);
-            }
-
-            // Flight proposals wait for review; other document workflows remain unchanged.
-            return processingResponse(travelDocumentRepository.save(document), extractionId);
-
+            FlightExtractionResult result = flightDocumentExtractor.extract(aiInput);
+            flightExtractionValidator.validate(result);
+            extractedData = jsonMapper.writeValueAsString(result);
         } catch (IOException exception) {
-            // A document that cannot be read cannot continue through processing.
-            document.setProcessingStatus(
-                    TravelDocumentProcessingStatus.FAILED
-            );
-            document.setProcessingStartedAt(null);
-            travelDocumentRepository.save(document);
-
-            throw new IllegalStateException(
-                    "Failed to read stored document",
-                    exception
-            );
-
-        } catch (RuntimeException exception) {
-            // Preserve FAILED even when the AI provider or validation step fails.
-            document.setProcessingStatus(
-                    TravelDocumentProcessingStatus.FAILED
-            );
-            document.setProcessingStartedAt(null);
-            travelDocumentRepository.save(document);
-
-            throw exception;
+            // Preserve the cause for classification by the worker execution layer.
+            throw new IllegalStateException("Failed to read stored document", exception);
         }
+        // Close the input before committing success, so a close failure cannot follow a successful commit.
+        return finalizationService.finalizeFlightDocument(documentId, attemptId, documentType, extractedData);
     }
 
     public List<TravelDocumentSummaryResponse> getDocuments(Long tripId) {
@@ -160,11 +125,6 @@ public class TravelDocumentProcessingService {
                 .map(extraction -> new TravelDocumentExtractionSummaryResponse(
                         extraction.getId(), extraction.getCreatedAt()))
                 .toList();
-    }
-
-    private TravelDocumentProcessingResponse processingResponse(TravelDocument document, Long extractionId) {
-        return new TravelDocumentProcessingResponse(document.getId(), document.getProcessingStatus(),
-                document.getDocumentType(), extractionId);
     }
 
     public TravelDocumentExtractionResponse getCurrentDocumentExtraction(Long tripId, Long documentId) {
@@ -224,18 +184,6 @@ public class TravelDocumentProcessingService {
                 extraction.getCreatedAt(),
                 extractedData
         );
-    }
-
-    private Long extractFlightDocument(TravelDocument document, DocumentAiInput aiInput) {
-        FlightExtractionResult result = flightDocumentExtractor.extract(aiInput);
-        flightExtractionValidator.validate(result);
-        String extractedData = jsonMapper.writeValueAsString(result);
-
-        TravelDocumentExtraction extraction = new TravelDocumentExtraction();
-        extraction.setTravelDocument(document);
-        extraction.setExtractedData(extractedData);
-        extraction.setCreatedAt(Instant.now());
-        return travelDocumentExtractionRepository.save(extraction).getId();
     }
 
     private TravelDocumentType toTravelDocumentType(
