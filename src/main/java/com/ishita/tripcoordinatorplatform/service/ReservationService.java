@@ -117,6 +117,7 @@ public class ReservationService {
         existingReservation.setProvider(updatedReservation.getProvider());
         existingReservation.setConfirmationNumber(updatedReservation.getConfirmationNumber());
         existingReservation.setLocation(updatedReservation.getLocation());
+        existingReservation.setStructuredLocation(updatedReservation.getStructuredLocation());
 
         return reservationRepository.save(existingReservation);
     }

@@ -48,8 +48,7 @@ public class ItineraryItem {
         this.startDateTime = startDateTime;
     }
 
-    @NotNull(message = "End time is required")
-    @Column(nullable = false)
+    // Nullable when the planned end of this commitment is not known.
     private LocalDateTime endDateTime;
 
     public void setId(Long id) {

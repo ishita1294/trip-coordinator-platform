@@ -60,7 +60,8 @@ public class ItineraryItemService {
         Long activityId = request.getActivityId();
         Long reservationId = request.getReservationId();
 
-        if (item.getEndDateTime().isBefore(item.getStartDateTime())) {
+        if (item.getEndDateTime() != null
+                && item.getEndDateTime().isBefore(item.getStartDateTime())) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Itinerary item end time cannot be before start time"
@@ -257,8 +258,8 @@ public class ItineraryItemService {
             );
         }
 
-        if (updatedItem.getEndDateTime()
-                .isBefore(updatedItem.getStartDateTime())) {
+        if (updatedItem.getEndDateTime() != null
+                && updatedItem.getEndDateTime().isBefore(updatedItem.getStartDateTime())) {
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -464,7 +465,8 @@ public class ItineraryItemService {
     ) {
 
         if (startDateTime.toLocalDate().isBefore(trip.getStartDate())
-                || endDateTime.toLocalDate().isAfter(trip.getEndDate())) {
+                || startDateTime.toLocalDate().isAfter(trip.getEndDate())
+                || (endDateTime != null && endDateTime.toLocalDate().isAfter(trip.getEndDate()))) {
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,

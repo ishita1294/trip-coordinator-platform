@@ -172,10 +172,11 @@ public class ConflictResolutionService {
             );
 
             boolean stillOverlaps =
-                    option.getProposedStartDateTime()
-                            .isBefore(otherItemContext.getEndDateTime())
-                            && option.getProposedEndDateTime()
-                            .isAfter(otherItemContext.getStartDateTime());
+                    itineraryConflictService.overlaps(
+                            option.getProposedStartDateTime(),
+                            option.getProposedEndDateTime(),
+                            otherItemContext.getStartDateTime(),
+                            otherItemContext.getEndDateTime());
 
             if (stillOverlaps) {
                 throw new IllegalArgumentException(
@@ -404,14 +405,13 @@ public class ConflictResolutionService {
             LocalDateTime proposedEndDateTime
     ) {
 
-        if (proposedStartDateTime == null
-                || proposedEndDateTime == null) {
+        if (proposedStartDateTime == null) {
             throw new IllegalArgumentException(
-                    "Proposed start and end time are required"
+                    "Proposed start time is required"
             );
         }
 
-        if (!proposedEndDateTime.isAfter(proposedStartDateTime)) {
+        if (proposedEndDateTime != null && !proposedEndDateTime.isAfter(proposedStartDateTime)) {
             throw new IllegalArgumentException(
                     "Proposed end time must be after start time"
             );

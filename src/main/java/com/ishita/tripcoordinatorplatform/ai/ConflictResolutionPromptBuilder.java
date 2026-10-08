@@ -30,6 +30,7 @@ public class ConflictResolutionPromptBuilder {
                 - FIXED items must not be moved unless verified alternatives are provided.
                 - If an option requires information that is not known, mark it as requiring verification.
                 - Prefer preserving existing itinerary items.
+                - When an item has no known end, keep proposedEndDateTime null; do not invent a duration.
 
                 """);
 

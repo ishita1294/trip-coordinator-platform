@@ -12,7 +12,6 @@ public class ApplyConflictResolutionRequest {
     @NotNull
     private LocalDateTime proposedStartDateTime;
 
-    @NotNull
     private LocalDateTime proposedEndDateTime;
 
     public Long getItineraryItemId() {

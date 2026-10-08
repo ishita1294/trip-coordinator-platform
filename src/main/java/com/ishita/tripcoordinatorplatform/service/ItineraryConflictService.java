@@ -297,7 +297,7 @@ public class ItineraryConflictService {
     }
 
     /**
-     * Determines whether two time ranges overlap.
+     * Determines definite overlap without assuming a duration for unknown ends.
      * Touching boundaries, such as 10:00–11:00 and 11:00–12:00,
      * are not considered an overlap.
      */
@@ -307,7 +307,16 @@ public class ItineraryConflictService {
             LocalDateTime secondStart,
             LocalDateTime secondEnd
     ) {
-        return firstStart.isBefore(secondEnd)
-                && firstEnd.isAfter(secondStart);
+        // Keep the existing interval behavior when both ends are known.
+        if (firstEnd != null && secondEnd != null) {
+            return firstStart.isBefore(secondEnd) && firstEnd.isAfter(secondStart);
+        }
+        if (firstStart.equals(secondStart)) {
+            return true;
+        }
+        if (firstStart.isBefore(secondStart)) {
+            return firstEnd != null && firstEnd.isAfter(secondStart);
+        }
+        return secondEnd != null && secondEnd.isAfter(firstStart);
     }
 }

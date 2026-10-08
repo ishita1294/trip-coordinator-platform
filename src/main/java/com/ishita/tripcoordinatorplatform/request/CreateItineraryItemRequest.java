@@ -16,7 +16,6 @@ public class CreateItineraryItemRequest {
     @NotNull
     private LocalDateTime startDateTime;
 
-    @NotNull
     private LocalDateTime endDateTime;
 
     private ItineraryItemFlexibility flexibility =

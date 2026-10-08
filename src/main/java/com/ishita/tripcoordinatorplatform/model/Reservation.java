@@ -1,6 +1,7 @@
 package com.ishita.tripcoordinatorplatform.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
@@ -103,6 +104,18 @@ public class Reservation {
 
     public void setConfirmationNumberType(ReservationConfirmationType confirmationNumberType) {
         this.confirmationNumberType = confirmationNumberType;
+    }
+
+    @Valid
+    @Embedded
+    private Location structuredLocation;
+
+    public Location getStructuredLocation() {
+        return structuredLocation;
+    }
+
+    public void setStructuredLocation(Location structuredLocation) {
+        this.structuredLocation = structuredLocation;
     }
 
     private String location;
