@@ -1,8 +1,9 @@
 package com.ishita.tripcoordinatorplatform.controller;
 
 import com.ishita.tripcoordinatorplatform.model.TravelDocument;
-import com.ishita.tripcoordinatorplatform.response.ConfirmFlightDocumentResponse;
-import com.ishita.tripcoordinatorplatform.service.FlightDocumentConfirmationService;
+import com.ishita.tripcoordinatorplatform.request.ConfirmAttractionTourDocumentRequest;
+import com.ishita.tripcoordinatorplatform.response.ConfirmDocumentResponse;
+import com.ishita.tripcoordinatorplatform.service.DocumentConfirmationService;
 import com.ishita.tripcoordinatorplatform.response.TravelDocumentExtractionResponse;
 import com.ishita.tripcoordinatorplatform.response.TravelDocumentExtractionSummaryResponse;
 import com.ishita.tripcoordinatorplatform.response.TravelDocumentSummaryResponse;
@@ -20,16 +21,16 @@ import java.util.List;
 public class TravelDocumentController {
     private final TravelDocumentUploadService uploadService;
     private final TravelDocumentProcessingService travelDocumentProcessingService;
-    private final FlightDocumentConfirmationService flightDocumentConfirmationService;
+    private final DocumentConfirmationService documentConfirmationService;
 
     public TravelDocumentController(
             TravelDocumentUploadService uploadService,
             TravelDocumentProcessingService travelDocumentProcessingService,
-            FlightDocumentConfirmationService flightDocumentConfirmationService
+            DocumentConfirmationService documentConfirmationService
     ) {
         this.uploadService = uploadService;
         this.travelDocumentProcessingService = travelDocumentProcessingService;
-        this.flightDocumentConfirmationService = flightDocumentConfirmationService;
+        this.documentConfirmationService = documentConfirmationService;
     }
 
     @PostMapping(
@@ -86,11 +87,12 @@ public class TravelDocumentController {
     }
 
     @PostMapping("/{documentId}/confirm")
-    public ConfirmFlightDocumentResponse confirmCurrentFlightDocument(
+    public ConfirmDocumentResponse confirmCurrentDocument(
             @PathVariable Long tripId,
-            @PathVariable Long documentId
+            @PathVariable Long documentId,
+            @RequestBody(required = false) ConfirmAttractionTourDocumentRequest request
     ) {
-        return flightDocumentConfirmationService.confirm(tripId, documentId);
+        return documentConfirmationService.confirm(tripId, documentId, request);
     }
 
 }

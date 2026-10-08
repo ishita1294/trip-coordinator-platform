@@ -3,9 +3,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { readResponse, requestUploadUrl, uploadToS3, completeUpload } from '../api/travelDocumentsApi';
 import {
   segmentFields, formatTimestamp, isComplete, isHistorical, displayValue,
+  isAttractionTour, isCompleteAttractionTour,
 } from '../utils/travelDocumentUtils';
 
-function TravelDocumentsTab({ tripId }) {
+function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
   const baseUrl = `/api/trips/${tripId}/documents`;
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,6 +17,9 @@ function TravelDocumentsTab({ tripId }) {
   const [reviewState, setReviewState] = useState('IDLE');
   const [reviewError, setReviewError] = useState('');
   const [proposal, setProposal] = useState([]);
+  const [tripType, setTripType] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [participantIds, setParticipantIds] = useState([]);
   const [busy, setBusy] = useState({});
   const [queueRequests, setQueueRequests] = useState({});
   const documentRefresh = useRef(null);
@@ -112,6 +116,9 @@ function TravelDocumentsTab({ tripId }) {
     setReviewError('');
     setActionErrors((current) => ({ ...current, confirm: '' }));
     setProposal([]);
+    setTripType(null);
+    setMembers([]);
+    setParticipantIds([]);
   }
 
   async function loadCurrentExtraction(documentId) {
@@ -127,15 +134,25 @@ function TravelDocumentsTab({ tripId }) {
       if (data?.documentId !== documentId) {
         throw new Error('The server returned a different document than requested.');
       }
-      if (data.documentType !== 'FLIGHT_CONFIRMATION') {
-        throw new Error('Only flight documents can be reviewed here.');
+      const tour = isAttractionTour(data.documentType);
+      if (data.documentType !== 'FLIGHT_CONFIRMATION' && !tour) {
+        throw new Error('Review is not implemented for this document type.');
       }
-      const groups = data?.extractedData?.reservations;
+      const groups = tour ? data?.extractedData?.bookings : data?.extractedData?.reservations;
       if (!Array.isArray(groups)) {
         throw new Error('Unable to review this document. Reprocess it and try again.');
       }
-      // Keep incomplete proposals visible, including missing groups or segments.
-      setProposal(groups.map((group) => ({
+      if (tour && documents.find((document) => document.id === documentId)?.processingStatus !== 'PROCESSED') {
+        const [trip, tripMembers] = await Promise.all([
+          fetch(`/api/trips/${tripId}`).then((response) => readResponse(response, 'Unable to load trip.')),
+          fetch(`/api/trips/${tripId}/members`).then((response) => readResponse(response, 'Unable to load trip members.')),
+        ]);
+        if (version !== reviewVersion.current) return;
+        setTripType(trip.tripType);
+        setMembers(Array.isArray(tripMembers) ? tripMembers : []);
+      }
+      // Keep incomplete proposals visible; all extracted facts stay read-only.
+      setProposal(tour ? groups.map((booking) => booking ?? {}) : groups.map((group) => ({
         ...group,
         segments: Array.isArray(group?.segments)
           ? group.segments.map((segment) => segment ?? {}) : [],
@@ -213,29 +230,41 @@ function TravelDocumentsTab({ tripId }) {
 
   function confirm(event) {
     event.preventDefault();
-    if (selectedDocumentId == null || reviewState !== 'READY' || !isComplete(proposal)) {
+    if (selectedDocumentId == null || reviewState !== 'READY' || !complete) {
       setActionErrors((current) => ({ ...current, confirm: 'Open a document for review before confirming.' }));
       return;
     }
-    if (isHistorical(proposal)) return;
+    if (historical || (tour && tripType === 'GROUP' && participantIds.length === 0)) return;
     const documentId = selectedDocumentId;
     runAction('confirm', async () => {
       await readResponse(await fetch(`${baseUrl}/${documentId}/confirm`, {
         method: 'POST',
-      }), 'Unable to confirm flight reservation.');
-      setMessage('Flight reservation saved');
+        ...(tour ? {
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ participantIds }),
+        } : {}),
+      }), tour ? 'Unable to confirm attraction/tour booking.' : 'Unable to confirm flight reservation.');
+      const successMessage = tour ? 'Attraction/tour reservation saved' : 'Flight reservation saved';
+      setMessage(successMessage);
       setDocuments((current) => current.map((document) => document.id === documentId
         ? { ...document, processingStatus: 'PROCESSED' } : document));
       closeReview();
       try {
         await refreshDocuments();
       } catch (refreshError) {
-        setError(`Flight reservation saved, but the document list could not be refreshed: ${refreshError.message}`);
+        setError(`${successMessage}, but the document list could not be refreshed: ${refreshError.message}`);
+      }
+      if (tour && onCommitmentSaved) {
+        try { await onCommitmentSaved(); } catch (refreshError) {
+          setError(`${successMessage}, but the itinerary could not be refreshed: ${refreshError.message}`);
+        }
       }
     });
   }
 
-  const historical = isHistorical(proposal);
+  const tour = isAttractionTour(documents.find((document) => document.id === selectedDocumentId)?.documentType);
+  const complete = tour ? isCompleteAttractionTour(proposal) : isComplete(proposal);
+  const historical = !tour && isHistorical(proposal);
   const selectedDocument = documents.find((document) => document.id === selectedDocumentId);
   const readOnly = selectedDocument?.processingStatus === 'PROCESSED';
   const statusLabels = { UPLOADED: 'Uploaded', PROCESSING: 'Processing...',
@@ -312,7 +341,7 @@ function TravelDocumentsTab({ tripId }) {
                 }}>
           <header className="document-review-header">
             <div>
-              <h2 id="document-review-title">{readOnly ? 'Flight details' : 'Review extracted details'}</h2>
+              <h2 id="document-review-title">{readOnly ? (tour ? 'Booking details' : 'Flight details') : 'Review extracted details'}</h2>
               {!readOnly && <p>{selectedDocument?.originalFileName}</p>}
             </div>
             <button type="button" aria-label="Close review" disabled={!!busy.confirm}
@@ -325,13 +354,39 @@ function TravelDocumentsTab({ tripId }) {
               <form className="flight-review" onSubmit={confirm}>
                 {!readOnly && <p>Review the AI extraction before saving it exactly as shown.
                   If details are missing or wrong, reprocess the document.</p>}
-                {!readOnly && !isComplete(proposal) && <p className="status-message error" role="alert">
-                  Some required flight details could not be extracted from this document.
+                {!readOnly && !complete && <p className="status-message error" role="alert">
+                  Some required {tour ? 'booking' : 'flight'} details could not be extracted from this document.
                 </p>}
                 {!readOnly && historical && <p className="status-message error" role="alert">
                   This flight reservation is historical and cannot be saved.
                 </p>}
-                {proposal.map((group, groupIndex) => (
+                {tour ? proposal.map((booking, bookingIndex) => (
+                  <fieldset className="reservation-block" key={bookingIndex}>
+                    <legend>Booking {bookingIndex + 1}</legend>
+                    <div className="document-form-grid">
+                      {[
+                        ['name', 'Activity / tour'], ['bookingReference', 'Booking reference'],
+                        ['provider', 'Provider / operator'], ['startDate', 'Start date'],
+                        ['startTime', 'Start time'], ['endDate', 'Documented end date'],
+                        ['endTime', 'Documented end time'], ['durationMinutes', 'Documented duration (minutes)'],
+                        ['timezone', 'Documented timezone'], ['instructions', 'Instructions'],
+                      ].map(([key, label]) => (
+                        <div key={key}>{label}<br /><span>{displayValue(key, booking[key])}</span></div>
+                      ))}
+                      {[
+                        ['name', 'Meeting / entry point'], ['address', 'Meeting / entry address'],
+                        ['latitude', 'Latitude'], ['longitude', 'Longitude'],
+                      ].map(([key, label]) => (
+                        <div key={key}>{label}<br /><span>{displayValue(key, booking.meetingPoint?.[key])}</span></div>
+                      ))}
+                    </div>
+                    {(!booking.endDate || !booking.endTime) && <p>
+                      {booking.durationMinutes != null
+                        ? 'The planned end will be calculated from the documented duration.'
+                        : 'Open-ended visit: no complete end date/time or duration was extracted.'}
+                    </p>}
+                  </fieldset>
+                )) : proposal.map((group, groupIndex) => (
                   <fieldset className="reservation-block" key={groupIndex}>
                     <legend>Reservation {groupIndex + 1}</legend>
                     <div className="document-form-grid">
@@ -351,7 +406,22 @@ function TravelDocumentsTab({ tripId }) {
                     ))}
                   </fieldset>
                 ))}
-                {!readOnly && isComplete(proposal) && <button type="submit" disabled={!!busy.confirm || historical}>
+                {!readOnly && tour && tripType === 'GROUP' && (
+                  <fieldset className="reservation-block">
+                    <legend>Participants for these bookings</legend>
+                    <p>Select the trip members attending. At least one participant is required.</p>
+                    {members.map((member) => (
+                      <label key={member.id}>
+                        <input type="checkbox" checked={participantIds.includes(member.id)} disabled={!!busy.confirm}
+                          onChange={(event) => setParticipantIds((current) => event.target.checked
+                            ? [...current, member.id] : current.filter((id) => id !== member.id))} />
+                        {member.user?.name || `Member ${member.id}`}
+                      </label>
+                    ))}
+                  </fieldset>
+                )}
+                {!readOnly && complete && <button type="submit" disabled={!!busy.confirm || historical
+                  || (tour && tripType === 'GROUP' && participantIds.length === 0)}>
                   {busy.confirm ? 'Confirming...' : 'Confirm & Save'}
                 </button>}
                 {!readOnly && <button type="button" disabled={!!busy.confirm || !!busy[`process-${selectedDocumentId}`]}

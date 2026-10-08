@@ -3,6 +3,8 @@ package com.ishita.tripcoordinatorplatform.repository;
 import com.ishita.tripcoordinatorplatform.model.TravelDocument;
 import com.ishita.tripcoordinatorplatform.model.TravelDocumentProcessingStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +18,17 @@ import com.ishita.tripcoordinatorplatform.model.TravelDocumentType;
 public interface TravelDocumentRepository extends JpaRepository<TravelDocument, Long> {
 
     Optional<TravelDocument> findByStorageKey(String storageKey);
+
+    @Query("SELECT document.documentType FROM TravelDocument document WHERE document.id = :documentId AND document.trip.id = :tripId")
+    Optional<TravelDocumentType> findDocumentTypeForDispatch(@Param("documentId") Long documentId,
+                                                           @Param("tripId") Long tripId);
+
+    boolean existsByIdAndTrip_Id(Long documentId, Long tripId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT document FROM TravelDocument document WHERE document.id = :documentId AND document.trip.id = :tripId")
+    Optional<TravelDocument> findForConfirmation(@Param("documentId") Long documentId,
+                                                @Param("tripId") Long tripId);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""

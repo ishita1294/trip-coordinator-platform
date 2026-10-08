@@ -48,3 +48,12 @@ export function displayValue(key, value) {
   }
   return value;
 }
+
+export function isAttractionTour(documentType) {
+  return documentType === 'ATTRACTION_TICKET' || documentType === 'TOUR_BOOKING';
+}
+
+export function isCompleteAttractionTour(proposal) {
+  return proposal.length > 0 && proposal.every((booking) =>
+    isPresent(booking.name) && isPresent(booking.startDate) && isPresent(booking.startTime));
+}

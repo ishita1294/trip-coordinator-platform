@@ -207,7 +207,7 @@ function App() {
                 onClick={() => setActiveTab('documents')}>Travel Documents</button>
       </nav>
 
-      {activeTab === 'documents' && <TravelDocumentsTab tripId={1} />}
+      {activeTab === 'documents' && <TravelDocumentsTab tripId={1} onCommitmentSaved={loadItinerary} />}
 
       <div hidden={activeTab !== 'itinerary'}>
       {isLoading && <p className="status-message">Loading itinerary...</p>}
