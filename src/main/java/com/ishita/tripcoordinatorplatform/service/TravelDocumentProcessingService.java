@@ -1,5 +1,7 @@
 package com.ishita.tripcoordinatorplatform.service;
 
+import com.ishita.tripcoordinatorplatform.ai.document.AttractionTourDocumentExtractor;
+import com.ishita.tripcoordinatorplatform.ai.document.AttractionTourExtractionValidator;
 import com.ishita.tripcoordinatorplatform.ai.document.DocumentAiInput;
 import com.ishita.tripcoordinatorplatform.ai.document.DocumentClassification;
 import com.ishita.tripcoordinatorplatform.ai.document.DocumentClassifier;
@@ -42,6 +44,8 @@ public class TravelDocumentProcessingService {
     private final DocumentStorage documentStorage;
     private final FlightDocumentExtractor flightDocumentExtractor;
     private final FlightExtractionValidator flightExtractionValidator;
+    private final AttractionTourDocumentExtractor attractionTourDocumentExtractor;
+    private final AttractionTourExtractionValidator attractionTourExtractionValidator;
     private final TravelDocumentExtractionRepository travelDocumentExtractionRepository;
     private final JsonMapper jsonMapper;
     private final DocumentProcessingFinalizationService finalizationService;
@@ -54,7 +58,9 @@ public class TravelDocumentProcessingService {
             FlightExtractionValidator flightExtractionValidator,
             TravelDocumentExtractionRepository travelDocumentExtractionRepository,
             JsonMapper jsonMapper,
-            DocumentProcessingFinalizationService finalizationService
+            DocumentProcessingFinalizationService finalizationService,
+            AttractionTourDocumentExtractor attractionTourDocumentExtractor,
+            AttractionTourExtractionValidator attractionTourExtractionValidator
     ) {
         this.travelDocumentRepository = travelDocumentRepository;
         this.documentClassifier = documentClassifier;
@@ -64,6 +70,8 @@ public class TravelDocumentProcessingService {
         this.travelDocumentExtractionRepository = travelDocumentExtractionRepository;
         this.jsonMapper = jsonMapper;
         this.finalizationService = finalizationService;
+        this.attractionTourDocumentExtractor = attractionTourDocumentExtractor;
+        this.attractionTourExtractionValidator = attractionTourExtractionValidator;
     }
 
     // Call only after a successful claim, using the exact token returned by that claim.
@@ -93,19 +101,24 @@ public class TravelDocumentProcessingService {
             if (documentType == null) {
                 documentType = toTravelDocumentType(documentClassifier.classify(aiInput));
             }
-            if (documentType != TravelDocumentType.FLIGHT_CONFIRMATION) {
+            if (documentType == TravelDocumentType.FLIGHT_CONFIRMATION) {
+                FlightExtractionResult result = flightDocumentExtractor.extract(aiInput);
+                flightExtractionValidator.validate(result);
+                extractedData = jsonMapper.writeValueAsString(result);
+            } else if (documentType == TravelDocumentType.ATTRACTION_TICKET
+                    || documentType == TravelDocumentType.TOUR_BOOKING) {
+                var result = attractionTourDocumentExtractor.extract(aiInput);
+                attractionTourExtractionValidator.validate(result);
+                extractedData = jsonMapper.writeValueAsString(result);
+            } else {
                 throw new IllegalStateException("Extraction is not implemented for this document type");
             }
-
-            FlightExtractionResult result = flightDocumentExtractor.extract(aiInput);
-            flightExtractionValidator.validate(result);
-            extractedData = jsonMapper.writeValueAsString(result);
         } catch (IOException exception) {
             // Preserve the cause for classification by the worker execution layer.
             throw new IllegalStateException("Failed to read stored document", exception);
         }
         // Close the input before committing success, so a close failure cannot follow a successful commit.
-        return finalizationService.finalizeFlightDocument(documentId, attemptId, documentType, extractedData);
+        return finalizationService.finalizeDocument(documentId, attemptId, documentType, extractedData);
     }
 
     public List<TravelDocumentSummaryResponse> getDocuments(Long tripId) {

@@ -25,12 +25,14 @@ public class DocumentProcessingFinalizationService {
     }
 
     @Transactional
-    public TravelDocumentProcessingResponse finalizeFlightDocument(Long documentId, UUID attemptId,
+    public TravelDocumentProcessingResponse finalizeDocument(Long documentId, UUID attemptId,
                                                                  TravelDocumentType documentType,
                                                                  String extractedData) {
         Objects.requireNonNull(attemptId, "Processing attempt ID is required");
-        if (documentType != TravelDocumentType.FLIGHT_CONFIRMATION) {
-            throw new IllegalArgumentException("Flight finalization requires FLIGHT_CONFIRMATION");
+        if (documentType != TravelDocumentType.FLIGHT_CONFIRMATION
+                && documentType != TravelDocumentType.ATTRACTION_TICKET
+                && documentType != TravelDocumentType.TOUR_BOOKING) {
+            throw new IllegalArgumentException("Extraction finalization is not implemented for this document type");
         }
         // This update locks the row until commit and fences every subsequent write in this transaction.
         if (documents.completeProcessingAttempt(documentId, attemptId, documentType) != 1) {
