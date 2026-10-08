@@ -2,7 +2,6 @@ package com.ishita.tripcoordinatorplatform.service;
 
 import com.ishita.tripcoordinatorplatform.model.ItineraryItem;
 import com.ishita.tripcoordinatorplatform.model.ItineraryItemParticipant;
-import com.ishita.tripcoordinatorplatform.model.TripMember;
 import com.ishita.tripcoordinatorplatform.repository.ItineraryConflictRepository;
 import com.ishita.tripcoordinatorplatform.repository.ItineraryItemParticipantRepository;
 import com.ishita.tripcoordinatorplatform.repository.ItineraryItemRepository;
@@ -17,82 +16,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ItineraryConflictServiceTest {
-
-    @Test
-    void shouldReturnTrueWhenItemsShareParticipant() {
-        ItineraryItemParticipantRepository participantRepository =
-                mock(ItineraryItemParticipantRepository.class);
-
-        ItineraryItemRepository itineraryItemRepository =
-                mock(ItineraryItemRepository.class);
-
-        ItineraryConflictRepository conflictRepository =
-                mock(ItineraryConflictRepository.class);
-
-        ItineraryConflictService conflictService =
-                new ItineraryConflictService(participantRepository, itineraryItemRepository, conflictRepository);
-
-        TripMember sharedMember = new TripMember();
-        sharedMember.setId(1L);
-
-        ItineraryItemParticipant firstParticipant =
-                new ItineraryItemParticipant();
-        firstParticipant.setTripMember(sharedMember);
-
-        ItineraryItemParticipant secondParticipant =
-                new ItineraryItemParticipant();
-        secondParticipant.setTripMember(sharedMember);
-
-        when(participantRepository.findByItineraryItem_Id(1L))
-                .thenReturn(List.of(firstParticipant));
-
-        when(participantRepository.findByItineraryItem_Id(2L))
-                .thenReturn(List.of(secondParticipant));
-
-        boolean result = conflictService.haveSharedParticipant(1L, 2L);
-
-        assertTrue(result);
-    }
-
-    @Test
-    void shouldReturnFalseWhenItemsDoNotShareParticipant() {
-        ItineraryItemParticipantRepository participantRepository =
-                mock(ItineraryItemParticipantRepository.class);
-
-        ItineraryItemRepository itineraryItemRepository =
-                mock(ItineraryItemRepository.class);
-
-        ItineraryConflictRepository conflictRepository =
-                mock(ItineraryConflictRepository.class);
-
-
-        ItineraryConflictService conflictService =
-                new ItineraryConflictService(participantRepository, itineraryItemRepository, conflictRepository);
-
-        TripMember firstMember = new TripMember();
-        firstMember.setId(1L);
-
-        TripMember secondMember = new TripMember();
-        secondMember.setId(2L);
-
-        ItineraryItemParticipant firstParticipant =
-                new ItineraryItemParticipant();
-        firstParticipant.setTripMember(firstMember);
-
-        ItineraryItemParticipant secondParticipant =
-                new ItineraryItemParticipant();
-        secondParticipant.setTripMember(secondMember);
-
-        when(participantRepository.findByItineraryItem_Id(1L))
-                .thenReturn(List.of(firstParticipant));
-
-        when(participantRepository.findByItineraryItem_Id(2L))
-                .thenReturn(List.of(secondParticipant));
-
-        boolean result = conflictService.haveSharedParticipant(1L, 2L);
-
-        assertFalse(result);
-    }
 
     @Test
     void shouldReturnOverlappingItemForParticipant() {

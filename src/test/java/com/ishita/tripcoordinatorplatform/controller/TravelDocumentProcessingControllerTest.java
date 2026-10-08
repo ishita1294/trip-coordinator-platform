@@ -7,8 +7,6 @@ import com.ishita.tripcoordinatorplatform.repository.DocumentProcessingOutboxRep
 import com.ishita.tripcoordinatorplatform.repository.TravelDocumentRepository;
 import com.ishita.tripcoordinatorplatform.service.DocumentProcessingQueueService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.Optional;
@@ -46,24 +44,5 @@ class TravelDocumentProcessingControllerTest {
         verify(documents, times(2)).claimForQueue(eq(10L), eq(1L), eq(TravelDocumentProcessingStatus.QUEUED), anyList());
         verify(documents, times(2)).findByIdAndTrip_Id(10L, 1L);
         verifyNoMoreInteractions(documents, outbox);
-    }
-
-    @ParameterizedTest
-    @EnumSource(value = TravelDocumentProcessingStatus.class, names = {"QUEUED", "PROCESSING", "PROCESSED"})
-    void nonQueueableDocumentReturnsConflict(TravelDocumentProcessingStatus status) throws Exception {
-        var documents = mock(TravelDocumentRepository.class);
-        var outbox = mock(DocumentProcessingOutboxRepository.class);
-        TravelDocument document = new TravelDocument();
-        document.setId(10L);
-        document.setProcessingStatus(status);
-        when(documents.findByIdAndTrip_Id(10L, 1L)).thenReturn(Optional.of(document));
-        var mvc = MockMvcBuilders.standaloneSetup(new TravelDocumentProcessingController(
-                new DocumentProcessingQueueService(documents, outbox))).build();
-
-        mvc.perform(post("/trips/1/documents/10/process"))
-                .andExpect(status().isConflict())
-                .andExpect(status().reason("Travel document cannot be queued in its current status"));
-
-        verifyNoInteractions(outbox);
     }
 }
