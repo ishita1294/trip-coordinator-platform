@@ -65,14 +65,16 @@ public class OpenAiFlightDocumentExtractor implements FlightDocumentExtractor {
 
     public OpenAiFlightDocumentExtractor(
             @Value("${app.ai.openai.extraction-model}") String model,
-            JsonMapper jsonMapper
+            JsonMapper jsonMapper,
+            @Value("${app.ai.openai.api-key:}") String apiKey
     ) {
         if (model == null || model.isBlank()) {
             throw new IllegalArgumentException("OpenAI model is required");
         }
         this.model = model;
         this.jsonMapper = jsonMapper;
-        this.client = OpenAIOkHttpClient.fromEnv();
+        this.client = apiKey == null || apiKey.isBlank() ? OpenAIOkHttpClient.fromEnv()
+                : OpenAIOkHttpClient.builder().fromEnv().apiKey(apiKey).build();
     }
 
     @Override

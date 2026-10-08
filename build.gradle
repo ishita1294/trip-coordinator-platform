@@ -33,10 +33,26 @@ dependencies {
     implementation 'software.amazon.awssdk:bedrockruntime'
     implementation 'software.amazon.awssdk:s3'
     implementation 'software.amazon.awssdk:sqs'
+    implementation 'software.amazon.awssdk:secretsmanager'
+    implementation 'com.amazonaws:aws-lambda-java-core:1.2.3'
+    implementation 'com.amazonaws:aws-lambda-java-events:3.16.1'
     implementation 'com.openai:openai-java:4.70.0'
     runtimeOnly 'org.postgresql:postgresql'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+// Lambda loads application classes and dependency JARs directly from lib/.
+tasks.register('lambdaZip', Zip) {
+    dependsOn tasks.named('jar')
+    archiveFileName = 'document-processing-lambda.zip'
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    into('lib') {
+        from tasks.named('jar')
+        from configurations.runtimeClasspath
+    }
 }

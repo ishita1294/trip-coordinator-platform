@@ -21,12 +21,14 @@ public class OpenAiDocumentClassifier implements DocumentClassifier {
     private final OpenAIClient client;
     private final String model;
 
-    public OpenAiDocumentClassifier(@Value("${app.ai.openai.classification-model}") String model) {
+    public OpenAiDocumentClassifier(@Value("${app.ai.openai.classification-model}") String model,
+                                    @Value("${app.ai.openai.api-key:}") String apiKey) {
         if (model == null || model.isBlank()) {
             throw new IllegalArgumentException("OpenAI model is required");
         }
         this.model = model;
-        this.client = OpenAIOkHttpClient.fromEnv();
+        this.client = apiKey == null || apiKey.isBlank() ? OpenAIOkHttpClient.fromEnv()
+                : OpenAIOkHttpClient.builder().fromEnv().apiKey(apiKey).build();
     }
 
     @Override
