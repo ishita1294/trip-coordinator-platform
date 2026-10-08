@@ -55,8 +55,9 @@ resource "aws_sqs_queue" "document_processing_dlq" {
 }
 
 resource "aws_sqs_queue" "document_processing" {
-  name                    = "${var.project_name}-${var.environment}-document-processing"
-  sqs_managed_sse_enabled = true
+  name                       = "${var.project_name}-${var.environment}-document-processing"
+  sqs_managed_sse_enabled    = true
+  visibility_timeout_seconds = 180
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.document_processing_dlq.arn

@@ -57,3 +57,23 @@ output "dev_vpc_id" {
   description = "Dedicated development VPC ID."
   value       = aws_vpc.dev_database.id
 }
+
+output "document_processing_private_subnet_ids" {
+  description = "Private subnet IDs used by the document-processing Lambda."
+  value       = aws_subnet.document_processing_private[*].id
+}
+
+output "document_processing_lambda_security_group_id" {
+  description = "Security group used by the document-processing Lambda."
+  value       = aws_security_group.document_processing_lambda.id
+}
+
+output "document_processing_nat_gateway_id" {
+  description = "Dev NAT Gateway ID, or null when NAT is disabled."
+  value       = one(aws_nat_gateway.document_processing[*].id)
+}
+
+output "document_processing_openai_secret_arn" {
+  description = "OpenAI secret ARN; populate the secret value manually after apply."
+  value       = aws_secretsmanager_secret.document_processing_openai.arn
+}

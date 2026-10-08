@@ -3,6 +3,12 @@ variable "aws_region" {
   type        = string
 }
 
+variable "enable_nat_gateway" {
+  description = "Enable one dev NAT Gateway for outbound internet access from worker private subnets."
+  type        = bool
+  default     = false
+}
+
 variable "project_name" {
   description = "Short project name used in the bucket prefix and tags."
   type        = string
