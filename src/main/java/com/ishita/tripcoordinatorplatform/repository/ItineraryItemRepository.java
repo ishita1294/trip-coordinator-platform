@@ -11,6 +11,7 @@ import java.util.Optional;
 
 public interface ItineraryItemRepository extends JpaRepository<ItineraryItem, Long> {
 
+    @org.springframework.data.jpa.repository.EntityGraph(type = org.springframework.data.jpa.repository.EntityGraph.EntityGraphType.LOAD, attributePaths = {"reservation", "activity.destination"})
     List<ItineraryItem> findByItinerary_Trip_IdOrderByStartDateTime(Long tripId);
 
     Optional<ItineraryItem> findByIdAndItinerary_Trip_Id(
