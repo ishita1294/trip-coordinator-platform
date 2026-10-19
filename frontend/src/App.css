@@ -378,6 +378,8 @@ h3 {
   background: #ffffff;
   box-shadow: 0 24px 70px rgba(22, 32, 43, 0.26);
   padding: 24px;
+  max-height: 85vh;
+  overflow-y: auto;
 }
 
 .modal-header {

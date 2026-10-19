@@ -1,13 +1,4 @@
-function formatDateTime(value) {
-  if (!value) {
-    return 'Not scheduled';
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
-}
+import { formatScheduleDateTime as formatDateTime, schedulingFlexibility } from '../utils/itineraryFormatting.js';
 
 function formatLabel(value) {
   return String(value || 'Unknown').replaceAll('_', ' ');
@@ -53,8 +44,18 @@ function ItineraryDetailModal({ item,
           </div>
           <div>
             <dt>End</dt>
-            <dd>{formatDateTime(item.endDateTime)}</dd>
+            <dd>{item.endDateTime ? formatDateTime(item.endDateTime) : 'End not planned'}</dd>
           </div>
+          {schedulingFlexibility[item.flexibility] && (
+            <div>
+              <dt>Scheduling</dt>
+              <dd>
+                <strong>{schedulingFlexibility[item.flexibility].label}</strong>
+                <br />{schedulingFlexibility[item.flexibility].description}
+                {!item.endDateTime && <> Only a start is scheduled; the end is not planned.</>}
+              </dd>
+            </div>
+          )}
           <div>
             <dt>Open Conflict</dt>
             <dd>{conflicts.length > 0 ? 'Yes' : 'No'}</dd>
