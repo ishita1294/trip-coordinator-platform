@@ -231,16 +231,27 @@ public class ConflictResolutionService {
             Long tripMemberId,
             Long conflictId
     ) {
-        validateConflictScope(tripId, tripMemberId, conflictId);
-        String prompt = buildPrompt(conflictId);
-
-        String responseJson = conflictResolutionResolver.resolve(prompt);
-
-        return processAiResponse(
-                tripId,
-                conflictId,
-                responseJson
-        );
+        var conflict=validateConflictScope(tripId, tripMemberId, conflictId);
+        if (conflict.getStatus()!=ItineraryConflictStatus.OPEN)
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"This conflict is already resolved; refresh the itinerary.");
+        var context=buildContext(conflictId);
+        var response=parseResponse(conflictResolutionResolver.resolve(context,promptBuilder.buildPrompt(context)));
+        var valid=new java.util.ArrayList<ConflictResolutionOption>();
+        if (response.getOptions()==null) throw new IllegalArgumentException("Invalid resolution options");
+        for (var option:response.getOptions()) {
+            var single=new ConflictResolutionResponse();single.setOptions(java.util.List.of(option));
+            try {
+                validateResponse(tripId,conflictId,single);
+                itineraryItemService.validateWithinTripDates(conflict.getFirstItem().getItinerary().getTrip(),
+                        option.getProposedStartDateTime(),option.getProposedEndDateTime());
+                valid.add(option);
+            } catch (IllegalArgumentException | ResponseStatusException invalid) {
+                // One unsafe proposal must not hide another independently validated alternative.
+            }
+        }
+        response.setOptions(valid);
+        if (valid.isEmpty()) response.setExplanation("No verified schedule move is available. Fixed items cannot move; time-constrained items need verified rescheduling bounds, and flexible moves must stay within trip dates without another participant conflict.");
+        return response;
     }
 
     @Transactional

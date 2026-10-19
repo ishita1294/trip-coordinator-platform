@@ -102,6 +102,9 @@ function App() {
       }
 
       const data = await response.json();
+      if (Array.isArray(data.options) && data.options.length === 0) {
+        setSuggestionErrors(current => ({...current, [conflictId]: data.explanation || 'No verified schedule move is available.'}));
+      }
 
       setResolutionSuggestions((current) => ({
         ...current,

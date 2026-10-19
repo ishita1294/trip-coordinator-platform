@@ -8,6 +8,9 @@ import java.util.List;
 public class ConflictResolutionResponse {
 
     private List<ConflictResolutionOption> options;
+    private String explanation;
+    public String getExplanation() { return explanation; }
+    public void setExplanation(String value) { explanation=value; }
 
     public ConflictResolutionResponse() {
     }
