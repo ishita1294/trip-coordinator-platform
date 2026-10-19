@@ -26,6 +26,8 @@ import java.util.regex.Pattern;
 public class DocumentUploadCompletionService {
     private static final Pattern FILE_KEY = Pattern.compile(
             "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}-(.+)$");
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private com.ishita.tripcoordinatorplatform.auth.TripAccessService access;
     private final TripRepository trips;
     private final TravelDocumentRepository documents;
     private final S3Client s3;
@@ -47,10 +49,13 @@ public class DocumentUploadCompletionService {
     }
 
     public TravelDocumentSummaryResponse complete(Long tripId, CompleteDocumentUploadRequest request) {
+        return complete(tripId, request, null);
+    }
+    public TravelDocumentSummaryResponse complete(Long tripId, CompleteDocumentUploadRequest request, Long actorId) {
         var trip = trips.findById(tripId).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "Trip not found"));
         String key = request == null ? null : request.storageKey();
-        String filename = filename(tripId, key);
+        String filename = filename(tripId, key, actorId);
         var existing = documents.findByStorageKey(key);
         if (existing.isPresent()) return response(tripId, existing.get());
 
@@ -61,7 +66,7 @@ public class DocumentUploadCompletionService {
             if (failure.statusCode() == 404) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Uploaded document object not found");
             }
-            throw failure; // Permission and operational failures must not masquerade as missing uploads.
+            throw failure; // Report permission and service failures as errors, rather than claiming the upload is missing.
         }
         try {
             DocumentUploadPolicy.validate(object.contentLength(), object.contentType());
@@ -70,13 +75,19 @@ public class DocumentUploadCompletionService {
             throw invalidObject;
         }
 
-        // S3 calls finish before the short database registration transaction starts.
+        // Finish S3 requests before opening the database transaction that records the upload.
         try {
             return registration.execute(status -> {
+                if (actorId != null) {
+                    if (access == null) throw new IllegalStateException("Authenticated upload authorization unavailable");
+                    trips.lockForMembershipChange(tripId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,"Trip not found"));
+                    access.requireEditor(tripId,actorId);
+                }
                 var alreadyRegistered = documents.findByStorageKey(key);
                 if (alreadyRegistered.isPresent()) return response(tripId, alreadyRegistered.get());
                 var document = new TravelDocument();
                 document.setTrip(trip);
+                document.setUploadedByUserId(actorId);
                 document.setOriginalFileName(filename);
                 document.setStorageKey(key);
                 document.setContentType(object.contentType());
@@ -85,14 +96,14 @@ public class DocumentUploadCompletionService {
                 return response(tripId, documents.saveAndFlush(document));
             });
         } catch (DataIntegrityViolationException failure) {
-            // A concurrent completion may have won the unique-key insert. Read only after rollback.
+            // Another request may have recorded this upload first. Look it up after the failed transaction rolls back.
             return documents.findByStorageKey(key).map(document -> response(tripId, document))
                     .orElseThrow(() -> failure);
         }
     }
 
-    private String filename(Long tripId, String key) {
-        String prefix = "trips/" + tripId + "/documents/";
+    private String filename(Long tripId, String key, Long actorId) {
+        String prefix = "trips/" + tripId + "/documents/" + (actorId == null ? "" : "users/" + actorId + "/");
         if (key == null || !key.startsWith(prefix)) throw invalidKey();
         var match = FILE_KEY.matcher(key.substring(prefix.length()));
         if (!match.matches()) throw invalidKey();

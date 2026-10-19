@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface ItineraryItemParticipantRepository extends JpaRepository<ItineraryItemParticipant, Long> {
+    boolean existsByTripMember_Id(Long tripMemberId);
+
 
     List<ItineraryItemParticipant> findByItineraryItem_Id(Long itineraryItemId);
 

@@ -1,3 +1,6 @@
+import {readUiSession,writeUiSession,uiKey} from './utils/uiSession.js';
+import CreateTrip from './components/CreateTrip.jsx';
+import { apiFetch } from './api/authenticatedApi.js';
 import { useEffect, useState } from 'react';
 import ConflictTable from './components/ConflictTable.jsx';
 import ItineraryCard from './components/ItineraryCard.jsx';
@@ -5,11 +8,73 @@ import { formatScheduleDate } from './utils/itineraryFormatting.js';
 import ItineraryDetailModal from './components/ItineraryDetailModal.jsx';
 import TravelDocumentsTab from './components/TravelDocumentsTab.jsx';
 
-const itineraryUrl = '/api/trips/1/itinerary/items';
-const conflictsUrl = '/api/trips/1/members/1/itinerary/conflicts';
 
-function App() {
-  const [activeTab, setActiveTab] = useState('itinerary');
+
+function App({ currentUser }) {
+  const currentUserId = currentUser.id;
+  const [reload, setReload] = useState(0);
+  const [trips, setTrips] = useState([]);
+  const [selectedTripId, setSelectedTripId] = useState(null);
+  const [membershipActor,setMembershipActor]=useState(null);
+  const selectionKey=uiKey(currentUserId,'trip');
+  const [tripError, setTripError] = useState('');
+  const [tripsLoading, setTripsLoading] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setTripsLoading(true);setTripError('');
+    async function loadTrips() {
+      try {
+        const response = await apiFetch('/api/trips', { signal: controller.signal });
+        if (!response.ok) throw new Error('Unable to load trips.');
+        const availableTrips = await response.json();
+        const memberships = await Promise.all(availableTrips.map(async (trip) => {
+          const response = await apiFetch(`/api/trips/${trip.id}/members`, { signal: controller.signal });
+          if(response.status===403 || response.status===404)return null;
+          if (!response.ok) throw new Error('Unable to load trip memberships.');
+          const members = await response.json();
+          const membership = members.find((member) => member.user.id === currentUserId);
+          return membership ? { ...trip, memberId: membership.id } : null;
+        }));
+        if (controller.signal.aborted) return;
+        const userTrips = memberships.filter(Boolean);
+        setTrips(userTrips);
+        const saved=readUiSession(selectionKey)?.tripId;
+        setSelectedTripId(previous=>membershipActor===currentUserId && userTrips.some(trip=>trip.id===previous)?previous:userTrips.some(trip=>trip.id===saved)?saved:userTrips.length===1?userTrips[0].id:null);
+        setMembershipActor(currentUserId);
+      } catch (error) {
+        if (!controller.signal.aborted) {setTrips([]);setMembershipActor(null);setTripError(error.message || 'Unable to load trips.');}
+      } finally {
+        if (!controller.signal.aborted) setTripsLoading(false);
+      }
+    }
+    loadTrips();
+    return () => controller.abort();
+  }, [reload, currentUserId]);
+
+  useEffect(()=>{
+    if(!tripsLoading && membershipActor===currentUserId && trips.some(trip=>trip.id===selectedTripId))writeUiSession(selectionKey,{tripId:selectedTripId});
+  },[tripsLoading,membershipActor,currentUserId,selectedTripId,trips,selectionKey]);
+
+  const selectedTrip = membershipActor===currentUserId && trips.find((trip) => trip.id === selectedTripId);
+  if (!selectedTrip) {
+    return <main className="app-shell"><p className={`status-message${tripError ? ' error' : ''}`}>
+      {tripsLoading ? 'Loading trips...' : tripError || (trips.length?'Choose a trip to continue.':'No trips found for this user.')}
+    </p>{!tripsLoading && membershipActor===currentUserId && trips.length>0 && <label>Your trip<select value="" onChange={event=>setSelectedTripId(Number(event.target.value))}><option value="">Choose a trip</option>{trips.map(trip=><option key={trip.id} value={trip.id}>{trip.name}</option>)}</select></label>}{!tripsLoading && <CreateTrip onCreated={() => setReload(value=>value+1)} />}</main>;
+  }
+  return <><CreateTrip onCreated={() => setReload(value=>value+1)} />
+    <TripWorkspace key={`${currentUserId}:${selectedTrip.id}`} trip={selectedTrip} trips={trips}
+                        actorId={currentUserId} onTripChange={setSelectedTripId} /></>;
+}
+
+function TripWorkspace({ trip, trips, onTripChange, actorId }) {
+  const tripId = trip.id;
+  const memberId = trip.memberId;
+  const itineraryUrl = `/api/trips/${tripId}/itinerary/items`;
+  const conflictsUrl = `/api/trips/${tripId}/members/${memberId}/itinerary/conflicts`;
+  const tabKey=uiKey(actorId,'tab',tripId);
+  const [activeTab,setActiveTab]=useState(()=>{const saved=readUiSession(tabKey)?.tab;return ['itinerary','documents'].includes(saved)?saved:'itinerary';});
+  useEffect(()=>{writeUiSession(tabKey,{tab:activeTab});},[tabKey,activeTab]);
   const [items, setItems] = useState([]);
   const [conflicts, setConflicts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,8 +96,8 @@ function App() {
     async function loadItinerary() {
       try {
         const [itemsResponse, conflictsResponse] = await Promise.all([
-          fetch(itineraryUrl),
-          fetch(conflictsUrl),
+          apiFetch(itineraryUrl),
+          apiFetch(conflictsUrl),
         ]);
 
         if (!itemsResponse.ok || !conflictsResponse.ok) {
@@ -98,15 +163,16 @@ function App() {
     }));
 
     try {
-      const response = await fetch(
-          `/api/trips/1/members/1/itinerary/conflicts/${conflictId}/suggestions`,
+      const response = await apiFetch(
+          `/api/trips/${tripId}/members/${memberId}/itinerary/conflicts/${conflictId}/suggestions`,
           {
             method: 'POST',
           },
       );
 
       if (!response.ok) {
-        throw new Error('Unable to generate resolution suggestions.');
+        const problem = await response.json().catch(() => null);
+        throw new Error(problem?.detail || problem?.message || 'Unable to generate resolution suggestions.');
       }
 
       const data = await response.json();
@@ -143,8 +209,8 @@ function App() {
       [conflictId]: null,
     }));
     try {
-      const response = await fetch(
-          `/api/trips/1/members/1/itinerary/conflicts/${conflictId}/apply`,
+      const response = await apiFetch(
+          `/api/trips/${tripId}/members/${memberId}/itinerary/conflicts/${conflictId}/apply`,
           {
             method: 'POST',
             headers: {
@@ -197,9 +263,13 @@ function App() {
 
   return (
     <main className="app-shell">
+      <label>Your trip <select value={tripId} onChange={(event) => onTripChange(Number(event.target.value))}>
+        {trips.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+      </select></label>
+
       <section className="page-header">
         <div>
-          <p className="eyebrow">Trip 1</p>
+          <p className="eyebrow">Trip {tripId}</p>
           <h1>{activeTab === 'itinerary' ? 'Itinerary' : 'Travel Documents'}</h1>
         </div>
         <div className="summary" hidden={activeTab !== 'itinerary'}>
@@ -218,7 +288,7 @@ function App() {
                 onClick={() => setActiveTab('documents')}>Travel Documents</button>
       </nav>
 
-      {activeTab === 'documents' && <TravelDocumentsTab tripId={1} onCommitmentSaved={loadItinerary} />}
+      {activeTab === 'documents' && <TravelDocumentsTab tripId={tripId} onCommitmentSaved={loadItinerary} />}
 
       <div hidden={activeTab !== 'itinerary'}>
       {isLoading && <p className="status-message">Loading itinerary...</p>}

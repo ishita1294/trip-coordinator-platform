@@ -1,3 +1,4 @@
+import { apiFetch } from '../api/authenticatedApi.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { readResponse, requestUploadUrl, uploadToS3, completeUpload } from '../api/travelDocumentsApi';
@@ -34,7 +35,7 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
     const controller = new AbortController();
     documentListController.current = { baseUrl, controller };
     setLoading(true);
-    fetch(baseUrl, { signal: controller.signal })
+    apiFetch(baseUrl, { signal: controller.signal })
       .then((response) => readResponse(response, 'Unable to load documents.'))
       .then((data) => setDocuments(Array.isArray(data) ? data : []))
       .catch((requestError) => {
@@ -67,7 +68,7 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
     }
     if (selection.controller.signal.aborted) return;
     const request = (async () => {
-      const data = await readResponse(await fetch(baseUrl, { signal: selection.controller.signal }),
+      const data = await readResponse(await apiFetch(baseUrl, { signal: selection.controller.signal }),
         'Unable to refresh documents.');
       if (!selection.controller.signal.aborted) setDocuments(Array.isArray(data) ? data : []);
     })();
@@ -129,7 +130,7 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
     setReviewState('LOADING');
     try {
       const data = await readResponse(
-        await fetch(`${baseUrl}/${documentId}/extraction`), 'Unable to load document for review.');
+        await apiFetch(`${baseUrl}/${documentId}/extraction`), 'Unable to load document for review.');
       if (version !== reviewVersion.current) return;
       if (data?.documentId !== documentId) {
         throw new Error('The server returned a different document than requested.');
@@ -144,8 +145,8 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
       }
       if (tour && documents.find((document) => document.id === documentId)?.processingStatus !== 'PROCESSED') {
         const [trip, tripMembers] = await Promise.all([
-          fetch(`/api/trips/${tripId}`).then((response) => readResponse(response, 'Unable to load trip.')),
-          fetch(`/api/trips/${tripId}/members`).then((response) => readResponse(response, 'Unable to load trip members.')),
+          apiFetch(`/api/trips/${tripId}`).then((response) => readResponse(response, 'Unable to load trip.')),
+          apiFetch(`/api/trips/${tripId}/members`).then((response) => readResponse(response, 'Unable to load trip members.')),
         ]);
         if (version !== reviewVersion.current) return;
         setTripType(trip.tripType);
@@ -208,7 +209,7 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
       let data;
       try {
         data = await readResponse(
-          await fetch(`${baseUrl}/${documentId}/process`, { method: 'POST' }),
+          await apiFetch(`${baseUrl}/${documentId}/process`, { method: 'POST' }),
           'Unable to process document.');
         if (data?.documentId !== documentId) {
           throw new Error('The server returned a processing result for a different document.');
@@ -237,7 +238,7 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
     if (historical || (tour && tripType === 'GROUP' && participantIds.length === 0)) return;
     const documentId = selectedDocumentId;
     runAction('confirm', async () => {
-      await readResponse(await fetch(`${baseUrl}/${documentId}/confirm`, {
+      await readResponse(await apiFetch(`${baseUrl}/${documentId}/confirm`, {
         method: 'POST',
         ...(tour ? {
           headers: { 'Content-Type': 'application/json' },

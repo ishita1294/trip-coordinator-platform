@@ -1,3 +1,5 @@
+import { apiFetch } from './authenticatedApi.js';
+
 export async function readResponse(response, fallback) {
   const text = await response.text();
   let data;
@@ -15,7 +17,7 @@ export async function readResponse(response, fallback) {
 }
 
 export async function requestUploadUrl(baseUrl, fileName, contentType, size) {
-  return readResponse(await fetch(`${baseUrl}/upload-url`, {
+  return readResponse(await apiFetch(`${baseUrl}/upload-url`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fileName, contentType, size }),
@@ -32,7 +34,7 @@ export async function uploadToS3(uploadUrl, file, contentType) {
 }
 
 export async function completeUpload(baseUrl, storageKey) {
-  return readResponse(await fetch(`${baseUrl}/complete-upload`, {
+  return readResponse(await apiFetch(`${baseUrl}/complete-upload`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ storageKey }),

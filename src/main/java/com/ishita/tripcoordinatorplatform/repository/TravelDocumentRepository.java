@@ -16,6 +16,9 @@ import java.util.UUID;
 import com.ishita.tripcoordinatorplatform.model.TravelDocumentType;
 
 public interface TravelDocumentRepository extends JpaRepository<TravelDocument, Long> {
+    boolean existsByIdAndTrip_IdAndUploadedByUserId(Long id, Long tripId, Long actorId);
+    java.util.List<TravelDocument> findAllByTrip_IdAndUploadedByUserIdOrderByUploadedAtDescIdDesc(Long tripId, Long actorId);
+
 
     Optional<TravelDocument> findByStorageKey(String storageKey);
 

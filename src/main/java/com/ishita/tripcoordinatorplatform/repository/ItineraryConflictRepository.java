@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface ItineraryConflictRepository extends JpaRepository<ItineraryConflict, Long> {
+    boolean existsByTripMember_Id(Long tripMemberId);
+
 
     List<ItineraryConflict> findByFirstItem_Id(Long firstItemId);
 

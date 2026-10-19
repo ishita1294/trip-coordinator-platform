@@ -35,13 +35,16 @@ public class DocumentUploadUrlService {
     }
 
     public DocumentUploadUrlResponse initiate(Long tripId, DocumentUploadUrlRequest request) {
+        return initiate(tripId, request, null);
+    }
+    public DocumentUploadUrlResponse initiate(Long tripId, DocumentUploadUrlRequest request, Long actorId) {
         if (!trips.existsById(tripId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Trip not found");
         }
         if (request == null || request.fileName() == null || request.fileName().isBlank()) {
             throw badRequest("File name is required");
         }
-        // Strip both POSIX and Windows path components before creating the server-owned key.
+        // Remove directory names from either path format before generating the S3 object key.
         String name = request.fileName().replace('\\', '/');
         name = name.substring(name.lastIndexOf('/') + 1).trim();
         if (name.isBlank() || name.equals(".") || name.equals("..")
@@ -49,7 +52,7 @@ public class DocumentUploadUrlService {
             throw badRequest("File name is invalid");
         }
         DocumentUploadPolicy.validate(request.size(), request.contentType());
-        String key = "trips/" + tripId + "/documents/" + UUID.randomUUID() + "-" + name;
+        String key = "trips/" + tripId + "/documents/" + (actorId == null ? "" : "users/" + actorId + "/") + UUID.randomUUID() + "-" + name;
         var put = PutObjectRequest.builder().bucket(bucket).key(key)
                 .contentType(request.contentType()).build();
         var signed = presigner.presignPutObject(PutObjectPresignRequest.builder()

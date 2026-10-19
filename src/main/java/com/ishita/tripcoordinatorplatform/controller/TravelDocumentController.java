@@ -17,17 +17,23 @@ import java.io.IOException;
 import java.util.List;
 
 @RestController
+@org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication(type=org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type.SERVLET)
 @RequestMapping("/trips/{tripId}/documents")
 public class TravelDocumentController {
+    private final com.ishita.tripcoordinatorplatform.auth.DocumentAccessService access;
+    private final com.ishita.tripcoordinatorplatform.auth.CoreTripOperations operations;
     private final TravelDocumentUploadService uploadService;
     private final TravelDocumentProcessingService travelDocumentProcessingService;
     private final DocumentConfirmationService documentConfirmationService;
 
     public TravelDocumentController(
+            com.ishita.tripcoordinatorplatform.auth.DocumentAccessService access,
+            com.ishita.tripcoordinatorplatform.auth.CoreTripOperations operations,
             TravelDocumentUploadService uploadService,
             TravelDocumentProcessingService travelDocumentProcessingService,
             DocumentConfirmationService documentConfirmationService
     ) {
+        this.access=access; this.operations=operations;
         this.uploadService = uploadService;
         this.travelDocumentProcessingService = travelDocumentProcessingService;
         this.documentConfirmationService = documentConfirmationService;
@@ -41,20 +47,16 @@ public class TravelDocumentController {
             @RequestParam("file") MultipartFile file
     ) throws IOException {
 
-        // The controller handles the HTTP-specific MultipartFile and passes only
-        // generic file information/content into the application service.
-        return uploadService.uploadDocument(
-                tripId,
-                file.getOriginalFilename(),
-                file.getContentType(),
-                file.getSize(),
-                file.getInputStream()
-        );
+        Long actor=access.upload(tripId);
+        // Pass file details and content to the upload service; keep MultipartFile handling in the controller.
+        var content=file.getInputStream();
+        return operations.write(tripId, () -> uploadService.uploadDocument(tripId,
+                file.getOriginalFilename(),file.getContentType(),file.getSize(),content,actor));
     }
 
     @GetMapping
     public List<TravelDocumentSummaryResponse> getDocuments(@PathVariable Long tripId) {
-        return travelDocumentProcessingService.getDocuments(tripId);
+        return access.list(tripId);
     }
 
     @GetMapping("/{documentId}/extractions")
@@ -62,6 +64,7 @@ public class TravelDocumentController {
             @PathVariable Long tripId,
             @PathVariable Long documentId
     ) {
+        access.require(tripId,documentId,false);
         return travelDocumentProcessingService.getDocumentExtractions(tripId, documentId);
     }
 
@@ -70,6 +73,7 @@ public class TravelDocumentController {
             @PathVariable Long tripId,
             @PathVariable Long documentId
     ) {
+        access.require(tripId,documentId,false);
         return travelDocumentProcessingService.getCurrentDocumentExtraction(tripId, documentId);
     }
 
@@ -79,6 +83,7 @@ public class TravelDocumentController {
             @PathVariable Long documentId,
             @PathVariable Long extractionId
     ) {
+        access.require(tripId,documentId,false);
         return travelDocumentProcessingService.getDocumentExtraction(
                 tripId,
                 documentId,
@@ -92,7 +97,10 @@ public class TravelDocumentController {
             @PathVariable Long documentId,
             @RequestBody(required = false) ConfirmAttractionTourDocumentRequest request
     ) {
-        return documentConfirmationService.confirm(tripId, documentId, request);
+        return operations.write(tripId, () -> {
+            access.require(tripId,documentId,true);
+            return documentConfirmationService.confirm(tripId, documentId, request);
+        });
     }
 
 }

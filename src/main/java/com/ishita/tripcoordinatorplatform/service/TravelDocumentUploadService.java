@@ -48,6 +48,10 @@ public class TravelDocumentUploadService {
             long contentLength,
             InputStream inputStream
     ) {
+        return uploadDocument(tripId, originalFileName, contentType, contentLength, inputStream, null);
+    }
+    public TravelDocument uploadDocument(Long tripId, String originalFileName, String contentType,
+                                        long contentLength, InputStream inputStream, Long actorId) {
         // A document must always belong to an existing trip.
         Trip trip = tripRepository.findById(tripId)
                 .orElseThrow(() ->
@@ -77,6 +81,7 @@ public class TravelDocumentUploadService {
 
         TravelDocument document = new TravelDocument();
         document.setTrip(trip);
+        document.setUploadedByUserId(actorId);
         document.setOriginalFileName(originalFileName);
         document.setStorageKey(storageKey);
         document.setContentType(contentType);

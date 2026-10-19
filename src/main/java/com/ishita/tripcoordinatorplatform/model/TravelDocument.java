@@ -18,6 +18,11 @@ public class TravelDocument {
     @JoinColumn(name = "trip_id", nullable = false)
     private Trip trip;
 
+    @Column(name = "uploaded_by_user_id", updatable = false)
+    private Long uploadedByUserId;
+    public Long getUploadedByUserId() { return uploadedByUserId; }
+    public void setUploadedByUserId(Long value) { uploadedByUserId = value; }
+
     @Column(nullable = false)
     private String originalFileName;
 

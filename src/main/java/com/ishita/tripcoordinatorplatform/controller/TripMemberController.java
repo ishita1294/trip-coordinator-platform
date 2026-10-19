@@ -3,18 +3,21 @@ package com.ishita.tripcoordinatorplatform.controller;
 import com.ishita.tripcoordinatorplatform.model.TripMember;
 import com.ishita.tripcoordinatorplatform.model.TripMemberRole;
 import com.ishita.tripcoordinatorplatform.service.TripMemberService;
-import org.springframework.http.HttpStatus;
+import com.ishita.tripcoordinatorplatform.auth.CurrentUser;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @RestController
 public class TripMemberController {
 
     private final TripMemberService tripMemberService;
+    private final CurrentUser currentUser;
 
-    public TripMemberController(TripMemberService tripMemberService) {
+    public TripMemberController(TripMemberService tripMemberService, CurrentUser currentUser) {
+        this.currentUser = currentUser;
         this.tripMemberService = tripMemberService;
     }
 
@@ -24,11 +27,13 @@ public class TripMemberController {
             @RequestParam Long userId,
             @RequestParam TripMemberRole role
     ) {
+        currentUser.require();
         return tripMemberService.addMember(tripId, userId, role);
     }
 
     @GetMapping("/trips/{tripId}/members")
     public List<TripMember> getMembers(@PathVariable Long tripId) {
+        currentUser.require();
         return tripMemberService.getMembers(tripId);
     }
 
@@ -37,8 +42,7 @@ public class TripMemberController {
             @PathVariable Long tripId,
             @PathVariable Long userId
     ) {
-
-
+        currentUser.require();
         tripMemberService.removeMember(tripId, userId);
     }
     @PutMapping("/trips/{tripId}/members/{userId}/role")
@@ -47,6 +51,7 @@ public class TripMemberController {
             @PathVariable Long userId,
             @RequestParam TripMemberRole role
     ) {
+        currentUser.require();
         return tripMemberService.updateMemberRole(tripId, userId, role);
     }
 }

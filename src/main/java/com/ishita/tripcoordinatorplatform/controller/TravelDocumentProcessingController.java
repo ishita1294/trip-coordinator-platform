@@ -6,14 +6,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication(type=org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type.SERVLET)
 @RequestMapping("/trips/{tripId}/documents")
 public class TravelDocumentProcessingController {
 
+    private final com.ishita.tripcoordinatorplatform.auth.DocumentAccessService access;
+    private final com.ishita.tripcoordinatorplatform.auth.CoreTripOperations operations;
     private final DocumentProcessingQueueService queueService;
 
     public TravelDocumentProcessingController(
-            DocumentProcessingQueueService queueService
+            DocumentProcessingQueueService queueService,
+            com.ishita.tripcoordinatorplatform.auth.DocumentAccessService access,
+            com.ishita.tripcoordinatorplatform.auth.CoreTripOperations operations
     ) {
+        this.access=access; this.operations=operations;
         this.queueService = queueService;
     }
 
@@ -23,9 +29,9 @@ public class TravelDocumentProcessingController {
             @PathVariable Long tripId,
             @PathVariable Long documentId
     ) {
-        return queueService.queueDocument(
-                tripId,
-                documentId
-        );
+        return operations.write(tripId, () -> {
+            access.require(tripId,documentId,true);
+            return queueService.queueDocument(tripId,documentId);
+        });
     }
 }

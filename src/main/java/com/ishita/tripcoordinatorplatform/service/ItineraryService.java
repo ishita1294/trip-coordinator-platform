@@ -44,4 +44,9 @@ public class ItineraryService {
 
         return itineraryRepository.save(itinerary);
     }
+
+    public Itinerary getItinerary(Long tripId) {
+        return itineraryRepository.findByTrip_Id(tripId).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Itinerary not found for this trip"));
+    }
 }
