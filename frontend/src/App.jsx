@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import ConflictTable from './components/ConflictTable.jsx';
 import ItineraryCard from './components/ItineraryCard.jsx';
+import { formatScheduleDate } from './utils/itineraryFormatting.js';
 import ItineraryDetailModal from './components/ItineraryDetailModal.jsx';
 import TravelDocumentsTab from './components/TravelDocumentsTab.jsx';
 
@@ -53,8 +54,15 @@ function App() {
 
   const openConflicts = conflicts.filter((conflict) => conflict.status === 'OPEN');
   const sortedItems = [...items].sort(
-    (first, second) => new Date(first.startDateTime) - new Date(second.startDateTime),
+    (first, second) => String(first.startDateTime || '').localeCompare(String(second.startDateTime || '')),
   );
+
+  const itemsByDate = new Map();
+  for (const item of sortedItems) {
+    const date = item.startDateTime?.split('T')[0] || '';
+    if (!itemsByDate.has(date)) itemsByDate.set(date, []);
+    itemsByDate.get(date).push(item);
+  }
 
   const conflictedItemIds = new Set(
     openConflicts.flatMap((conflict) =>
@@ -225,15 +233,25 @@ function App() {
                 <p className="empty-message">No itinerary items found.</p>
               )}
 
-              {sortedItems.map((item) => (
-                <ItineraryCard
-                  key={item.id}
-                  item={item}
-                  hasOpenConflict={conflictedItemIds.has(item.id)}
-                  isSelected={selectedItem?.id === item.id}
-                  isHighlighted={selectedConflictItemIds.has(item.id)}
-                  onClick={() => openItineraryItem(item)}
-                />
+              {[...itemsByDate].map(([date, dayItems]) => (
+                <section className="itinerary-day" key={date} aria-label={date ? formatScheduleDate(date, true) : 'Unscheduled'}>
+                  <div className="itinerary-day-heading">
+                    <h3>{date ? formatScheduleDate(date, true) : 'Unscheduled'}</h3>
+                    <span>{dayItems.length} {dayItems.length === 1 ? 'item' : 'items'}</span>
+                  </div>
+                  <div className="itinerary-day-items">
+                    {dayItems.map((item) => (
+                      <ItineraryCard
+                        key={item.id}
+                        item={item}
+                        hasOpenConflict={conflictedItemIds.has(item.id)}
+                        isSelected={selectedItem?.id === item.id}
+                        isHighlighted={selectedConflictItemIds.has(item.id)}
+                        onClick={() => openItineraryItem(item)}
+                      />
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           </section>

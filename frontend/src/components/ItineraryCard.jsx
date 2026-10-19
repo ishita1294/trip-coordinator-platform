@@ -1,87 +1,38 @@
-const travelImages = [
-  {
-    keywords: ['breakfast', 'brunch', 'coffee'],
-    url: 'https://images.unsplash.com/photo-1493770348161-369560ae357d?auto=format&fit=crop&w=420&q=80',
-    alt: 'Breakfast table with coffee and pastries',
-  },
-  {
-    keywords: ['museum', 'gallery', 'exhibit'],
-    url: 'https://images.unsplash.com/photo-1564399579883-451a5d44ec08?auto=format&fit=crop&w=420&q=80',
-    alt: 'Museum gallery with framed artwork',
-  },
-  {
-    keywords: ['flight', 'airport', 'plane'],
-    url: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=420&q=80',
-    alt: 'Airplane wing above clouds',
-  },
-  {
-    keywords: ['hotel', 'check in', 'stay'],
-    url: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=420&q=80',
-    alt: 'Hotel pool and resort building',
-  },
-  {
-    keywords: ['dinner', 'lunch', 'restaurant'],
-    url: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=420&q=80',
-    alt: 'Restaurant table set for a meal',
-  },
-  {
-    keywords: ['walk', 'tour', 'sightseeing'],
-    url: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=420&q=80',
-    alt: 'Traveler looking across a scenic landscape',
-  },
-];
+import { formatScheduleDate, formatScheduleTime, schedulingFlexibility } from '../utils/itineraryFormatting.js';
 
-const fallbackImage = {
-  url: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=420&q=80',
-  alt: 'Open road through a travel landscape',
-};
-
-function formatDateTime(value) {
-  if (!value) {
-    return 'Not scheduled';
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
-}
-
-function getTravelImage(title) {
-  const normalizedTitle = String(title || '').toLowerCase();
-  return (
-    travelImages.find((image) =>
-      image.keywords.some((keyword) => normalizedTitle.includes(keyword)),
-    ) || fallbackImage
-  );
-}
-
-function ItineraryCard({
-  item,
-  hasOpenConflict,
-  isSelected,
-  isHighlighted,
-  onClick,
-}) {
-  const image = getTravelImage(item.title);
+function ItineraryCard({ item, hasOpenConflict, isSelected, isHighlighted, onClick }) {
+  const timing = schedulingFlexibility[item.flexibility];
+  const spansDates = item.endDateTime && item.startDateTime?.split('T')[0] !== item.endDateTime.split('T')[0];
+  const location = item.reservation?.structuredLocation?.name || item.reservation?.location
+    || item.activity?.destination?.name;
 
   return (
     <button
       type="button"
-      className={`itinerary-item ${isSelected ? 'is-selected' : ''} ${
-        isHighlighted ? 'is-overlap-highlight' : ''
-      }`}
+      className={`itinerary-item ${isSelected ? 'is-selected' : ''} ${isHighlighted ? 'is-overlap-highlight' : ''}`}
       onClick={onClick}
     >
-      <img className="item-thumbnail" src={image.url} alt={image.alt} />
-      <div className="time-block">
-        <span>{formatDateTime(item.startDateTime)}</span>
-        <span>{formatDateTime(item.endDateTime)}</span>
-      </div>
-      <div className="item-details">
-        <h3>{item.title}</h3>
+      <span className="item-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+        </svg>
+      </span>
+      <span className="time-block">
+        <span>{formatScheduleTime(item.startDateTime)}</span>
+        <span>{item.endDateTime
+          ? `– ${spansDates ? `${formatScheduleDate(item.endDateTime)} · ` : ''}${formatScheduleTime(item.endDateTime)}`
+          : 'End not planned'}</span>
+      </span>
+      <span className="item-details">
+        <span className="item-title">{item.title}</span>
+        {location && <span className="item-location">{location}</span>}
+      </span>
+      <span className="item-tags">
+        {timing && <span className={`timing-badge timing-${item.flexibility.toLowerCase()}`}
+          title={`${timing.description}${!item.endDateTime ? ' Only a start is scheduled; the end is not planned.' : ''}`}>{timing.label}</span>}
         {hasOpenConflict && <span className="conflict-badge">Open conflict</span>}
-      </div>
+      </span>
+      <span className="item-chevron" aria-hidden="true">›</span>
     </button>
   );
 }
