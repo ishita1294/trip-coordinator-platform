@@ -5,6 +5,8 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 .env
+.env.*
+!.env.*.example
 
 ### STS ###
 .apt_generated
@@ -44,3 +46,17 @@ frontend/.vite/
 
 # Local document storage
 data/
+
+# Authentication browser configuration and isolated Terraform state
+frontend/.env.local
+infra/terraform/auth/.terraform/
+infra/terraform/auth/*.tfstate*
+infra/terraform/auth/*.tfplan
+infra/terraform/regional-api/.terraform/
+infra/terraform/regional-api/*.tfstate*
+infra/terraform/regional-api/*.tfplan
+infra/terraform/regional-api/*.auto.tfvars.json
+infra/terraform/ecs-api/.terraform/
+infra/terraform/ecs-api/*.tfstate*
+infra/terraform/ecs-api/*.tfplan
+infra/terraform/ecs-api/*.auto.tfvars.json

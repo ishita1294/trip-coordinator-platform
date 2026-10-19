@@ -2,3 +2,13 @@
 .idea
 .env
 *.log
+
+# Private configuration must never enter the build context.
+.env.*
+**/.env
+**/.env.*
+**/.aws
+**/.terraform
+**/*.tfstate*
+**/*.tfplan
+**/*.auto.tfvars*
