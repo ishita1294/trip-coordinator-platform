@@ -1,0 +1,22 @@
+# Use with docker-compose.yml; keeps all document work local and unpublished.
+services:
+  app:
+    environment:
+      AUTH_ISSUER: ${AUTH_ISSUER:?Cognito issuer required}
+      AUTH_JWK_SET_URI: ${AUTH_JWK_SET_URI:?Cognito JWKS URI required}
+      AUTH_CLIENT_ID: ${AUTH_CLIENT_ID:?Cognito public client required}
+      AUTH_API_SCOPE: ${AUTH_API_SCOPE:?Cognito API scope required}
+      AUTH_USER_INFO_URI: ${AUTH_USER_INFO_URI:?Cognito user-info URI required}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      RUNTIME_SECRETS_ENABLED: "false"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/travel_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?LOCAL requires POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?LOCAL requires POSTGRES_PASSWORD}
+      APP_DOCUMENT_STORAGE_PROVIDER: local
+      DOCUMENT_STORAGE_S3_BUCKET: ""
+      DOCUMENT_PROCESSING_PUBLISHER_ENABLED: "false"
+      DOCUMENT_PROCESSING_SQS_QUEUE_URL: ""
+      AWS_ACCESS_KEY_ID: ""
+      AWS_SECRET_ACCESS_KEY: ""
+      AWS_SESSION_TOKEN: ""
