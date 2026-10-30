@@ -1,6 +1,7 @@
 package com.ishita.tripcoordinatorplatform.ai;
 
 import org.springframework.stereotype.Service;
+import org.springframework.context.annotation.Profile;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ConversationRole;
@@ -12,6 +13,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.Message;
  * so their conflict-resolution responses can be compared.
  */
 @Service
+@Profile("!document-worker")
 public class BedrockModelEvaluator {
 
     private final BedrockRuntimeClient bedrockClient;
