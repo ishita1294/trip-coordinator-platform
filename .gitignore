@@ -60,3 +60,9 @@ infra/terraform/ecs-api/.terraform/
 infra/terraform/ecs-api/*.tfstate*
 infra/terraform/ecs-api/*.tfplan
 infra/terraform/ecs-api/*.auto.tfvars.json
+
+node_modules/
+frontend/.*-dist/
+docs/verification/
+db/verification/
+commit-plan.md
