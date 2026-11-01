@@ -63,7 +63,10 @@ public class S3DocumentStorage implements DocumentStorage {
                     .key(storageKey)
                     .build());
         } catch (SdkException exception) {
-            throw new IllegalStateException("Failed to open stored document from S3", exception);
+            var reason=exception instanceof software.amazon.awssdk.services.s3.model.S3Exception service
+                    ? service.statusCode()==404?DocumentReadException.Reason.MISSING:service.statusCode()==403?DocumentReadException.Reason.ACCESS_DENIED:DocumentReadException.Reason.UNAVAILABLE
+                    : DocumentReadException.Reason.UNAVAILABLE;
+            throw new DocumentReadException(reason,exception);
         }
     }
 }

@@ -73,8 +73,10 @@ public class OpenAiFlightDocumentExtractor implements FlightDocumentExtractor {
         }
         this.model = model;
         this.jsonMapper = jsonMapper;
-        this.client = apiKey == null || apiKey.isBlank() ? OpenAIOkHttpClient.fromEnv()
-                : OpenAIOkHttpClient.builder().fromEnv().apiKey(apiKey).build();
+        var builder = OpenAIOkHttpClient.builder().fromEnv().maxRetries(0)
+                .timeout(DocumentProcessingBudget.clientTimeout(DocumentProcessingBudget.Stage.EXTRACTION));
+        if (apiKey != null && !apiKey.isBlank()) builder.apiKey(apiKey);
+        this.client = builder.build();
     }
 
     @Override
@@ -120,7 +122,17 @@ public class OpenAiFlightDocumentExtractor implements FlightDocumentExtractor {
                 .build();
 
         // Keep provider response handling and JSON conversion inside this implementation.
-        String rawExtraction = client.responses().create(params).output().stream()
+        long started = System.nanoTime();
+        com.openai.models.responses.Response response;
+        try {
+            response = client.responses().create(params, DocumentProcessingBudget.requestOptions(DocumentProcessingBudget.Stage.EXTRACTION));
+        } catch (RuntimeException failure) {
+            org.slf4j.LoggerFactory.getLogger(getClass()).warn("Document provider stage=extraction status=failed elapsedMs={} timeout={} causeClass={}",
+                    (System.nanoTime() - started) / 1_000_000, DocumentProcessingBudget.isTimeout(failure), failure.getClass().getSimpleName());
+            throw DocumentProcessingBudget.providerFailure(DocumentProcessingBudget.Stage.EXTRACTION, failure);
+        }
+        org.slf4j.LoggerFactory.getLogger(getClass()).info("Document provider stage=extraction status=completed elapsedMs={}", (System.nanoTime() - started) / 1_000_000);
+        String rawExtraction = response.output().stream()
                 .flatMap(item -> item.message().stream())
                 .flatMap(outputMessage -> outputMessage.content().stream())
                 .flatMap(content -> content.outputText().stream())

@@ -5,7 +5,8 @@ import com.ishita.tripcoordinatorplatform.repository.DocumentProcessingOutboxRep
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import com.ishita.tripcoordinatorplatform.config.DocumentProcessingMode;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.sqs.SqsClient;
@@ -15,7 +16,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.time.Instant;
 
 @Component
-@ConditionalOnProperty(name = "app.document-processing.publisher.enabled", havingValue = "true")
+@ConditionalOnExpression(DocumentProcessingMode.AWS_CONDITION)
 public class DocumentProcessingOutboxPublisher {
 
     private static final Logger logger = LoggerFactory.getLogger(DocumentProcessingOutboxPublisher.class);
@@ -43,7 +44,7 @@ public class DocumentProcessingOutboxPublisher {
                 continue;
             }
             try {
-                String body = jsonMapper.writeValueAsString(new DocumentProcessingMessage(entry.getDocumentId()));
+                String body = jsonMapper.writeValueAsString(new DocumentProcessingMessage(entry.getDocumentId(), entry.getProcessingJobId()));
                 // No database transaction is held while waiting for SQS.
                 sqsClient.sendMessage(SendMessageRequest.builder()
                         .queueUrl(queueUrl)

@@ -42,6 +42,37 @@ public class TravelDocument {
     @Column(name = "processing_attempt_id")
     private UUID processingAttemptId;
 
+    private UUID processingJobId;
+    @Column(nullable = false)
+    private int processingDeliveryCount;
+    @Column(nullable = false)
+    private int processingAttemptCount;
+    public int getProcessingAttemptCount() { return processingAttemptCount; }
+    public void setProcessingAttemptCount(int value) { processingAttemptCount = value; }
+    public int getProcessingDeliveryCount() { return processingDeliveryCount; }
+    public void setProcessingDeliveryCount(int value) { processingDeliveryCount = value; }
+    @Column(nullable = false)
+    private int processingFailureCount;
+    @Column(nullable = false)
+    private int processingInvalidOutputCount;
+    @Column(nullable = false)
+    private int processingExtractionTimeoutCount;
+    private String processingLastErrorCode;
+    private Instant processingFailedAt;
+
+    public UUID getProcessingJobId() { return processingJobId; }
+    public void setProcessingJobId(UUID value) { processingJobId = value; }
+    public int getProcessingFailureCount() { return processingFailureCount; }
+    public void setProcessingFailureCount(int value) { processingFailureCount = value; }
+    public int getProcessingInvalidOutputCount() { return processingInvalidOutputCount; }
+    public void setProcessingInvalidOutputCount(int value) { processingInvalidOutputCount = value; }
+    public int getProcessingExtractionTimeoutCount() { return processingExtractionTimeoutCount; }
+    public void setProcessingExtractionTimeoutCount(int value) { processingExtractionTimeoutCount = value; }
+    public String getProcessingLastErrorCode() { return processingLastErrorCode; }
+    public void setProcessingLastErrorCode(String value) { processingLastErrorCode = value; }
+    public Instant getProcessingFailedAt() { return processingFailedAt; }
+    public void setProcessingFailedAt(Instant value) { processingFailedAt = value; }
+
     public UUID getProcessingAttemptId() {
         return processingAttemptId;
     }

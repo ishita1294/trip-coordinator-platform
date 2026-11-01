@@ -82,10 +82,9 @@ public class LocalDocumentStorage implements DocumentStorage{
             return Files.newInputStream(documentPath);
 
         } catch (IOException exception) {
-            throw new IllegalStateException(
-                    "Failed to open stored document",
-                    exception
-            );
+            var reason=exception instanceof java.nio.file.NoSuchFileException?DocumentReadException.Reason.MISSING:
+                    exception instanceof java.nio.file.AccessDeniedException?DocumentReadException.Reason.ACCESS_DENIED:DocumentReadException.Reason.UNAVAILABLE;
+            throw new DocumentReadException(reason,exception);
         }
     }
 

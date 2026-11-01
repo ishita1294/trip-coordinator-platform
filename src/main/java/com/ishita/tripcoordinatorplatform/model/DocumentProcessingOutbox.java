@@ -23,6 +23,19 @@ public class DocumentProcessingOutbox {
     private Instant createdAt;
 
     private Instant publishedAt;
+    @Column(name = "extraction_contract", updatable = false, length = 32)
+    private String extractionContract;
+    public String getExtractionContract() { return extractionContract; }
+    public void setExtractionContract(String value) { extractionContract = value; }
+
+    @Column(updatable = false)
+    private java.util.UUID processingJobId;
+    @Column(updatable = false)
+    private Instant processingFailedAt;
+    public Instant getProcessingFailedAt() { return processingFailedAt; }
+    public java.util.UUID getProcessingJobId() { return processingJobId; }
+    public void setProcessingJobId(java.util.UUID value) { processingJobId = value; }
+
 
     public Long getId() {
         return id;

@@ -32,8 +32,8 @@ Lambda uses the RDS endpoint configured by Terraform; local Docker PostgreSQL
 remains a separate local-development option. The current SQS -> Lambda
 event-source mapping is enabled.
 
-Terraform defines the Lambda resource and the enabled SQS event-source
-mapping in `infra/terraform/lambda.tf`.
+Terraform defines the Lambda resource and the SQS event-source
+mapping, disabled by default pending activation approval, in `infra/terraform/lambda.tf`.
 Batch size must remain 1 with the current whole-batch failure handler; partial
 batch responses are not configured.
 
@@ -75,3 +75,20 @@ the local source hash detects code changes. The runtime role has no access to th
 artifact bucket. This bucket is separate from travel-document storage and may be
 force-destroyed for dev cleanup; versioning and lifecycle rules are not configured.
 The package must stay below Lambda's 250 MB total uncompressed ZIP limit.
+
+## Reviewed reliability configuration (offline, 2026-10-25)
+
+Current local source coordinates Lambda 180 seconds, API/worker lease 240 seconds and
+queue visibility 1080 seconds with batch 1/window 0. Provider caps are 20/90 seconds
+with a 30-second reserve, clipped to live remaining time.
+
+Lambda requires DOCUMENT_PROCESSING_WORKER_LEASE_SECONDS=240,
+DOCUMENT_PROCESSING_SQS_QUEUE_URL and source-queue-only
+sqs:ChangeMessageVisibility. Receipts are protected before startup and through
+lease expiry+30. Only committed failure permits 15/30/60/120-second retry
+visibility; failed invocations remain unacknowledged. Failed visibility updates
+retain failure signaling and rely on prior protection or queue fallback.
+
+See docs/AWS_DEV_DOCUMENT_PROCESSING_TEST_BUDGET_REVIEW.md for exact tested
+behavior, pre-handler limits, coordinated deployment and rollback requirements.
+Old startup-only/bundled ZIPs remain historical artifacts, not this source build.

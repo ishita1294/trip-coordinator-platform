@@ -12,11 +12,15 @@ public record TravelDocumentSummaryResponse(
         String contentType,
         TravelDocumentProcessingStatus processingStatus,
         TravelDocumentType documentType,
-        Instant uploadedAt
+        Instant uploadedAt,
+        int processingFailureCount,
+        String processingLastErrorCode,
+        Instant processingFailedAt
 ) {
     public static TravelDocumentSummaryResponse from(TravelDocument document) {
         return new TravelDocumentSummaryResponse(document.getId(), document.getOriginalFileName(),
                 document.getContentType(), document.getProcessingStatus(),
-                document.getDocumentType(), document.getUploadedAt());
+                document.getDocumentType(), document.getUploadedAt(), document.getProcessingFailureCount(),
+                document.getProcessingLastErrorCode(), document.getProcessingFailedAt());
     }
 }

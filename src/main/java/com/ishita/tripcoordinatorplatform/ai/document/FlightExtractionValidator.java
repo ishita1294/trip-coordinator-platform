@@ -14,7 +14,7 @@ public class FlightExtractionValidator {
         if (result == null
                 || result.reservations() == null
                 || result.reservations().isEmpty()) {
-            throw new IllegalArgumentException(
+            throw new InvalidDocumentExtractionException(
                     "Flight extraction must contain at least one reservation"
             );
         }
@@ -23,21 +23,21 @@ public class FlightExtractionValidator {
             if (reservation == null
                     || reservation.segments() == null
                     || reservation.segments().isEmpty()) {
-                throw new IllegalArgumentException(
+                throw new InvalidDocumentExtractionException(
                         "Flight reservation extraction must contain at least one segment"
                 );
             }
 
             if ((reservation.confirmationNumber() == null)
                     != (reservation.confirmationNumberType() == null)) {
-                throw new IllegalArgumentException(
+                throw new InvalidDocumentExtractionException(
                         "Confirmation number and type must both be present or both be null"
                 );
             }
 
             if (reservation.confirmationNumber() != null
                     && reservation.confirmationNumber().isBlank()) {
-                throw new IllegalArgumentException(
+                throw new InvalidDocumentExtractionException(
                         "Confirmation number must not be blank"
                 );
             }
@@ -53,28 +53,28 @@ public class FlightExtractionValidator {
 
             if (segment.segmentOrder() == null
                     || segment.segmentOrder() < 1) {
-                throw new IllegalArgumentException(
+                throw new InvalidDocumentExtractionException(
                         "Flight segment order must be greater than zero"
                 );
             }
 
             // Each segment order must identify one unique leg within the booking.
             if (!seenSegmentOrders.add(segment.segmentOrder())) {
-                throw new IllegalArgumentException(
+                throw new InvalidDocumentExtractionException(
                         "Duplicate flight segment order"
                 );
             }
 
             if (segment.flightNumber() == null
                     || segment.flightNumber().isBlank()) {
-                throw new IllegalArgumentException(
+                throw new InvalidDocumentExtractionException(
                         "Flight number is required"
                 );
             }
 
             if (!isValidAirportCode(segment.departureAirportCode())
                     || !isValidAirportCode(segment.arrivalAirportCode())) {
-                throw new IllegalArgumentException(
+                throw new InvalidDocumentExtractionException(
                         "Departure and arrival airport codes must be 3 letters"
                 );
             }
