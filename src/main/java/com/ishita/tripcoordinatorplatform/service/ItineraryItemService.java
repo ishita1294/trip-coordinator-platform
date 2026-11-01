@@ -122,6 +122,9 @@ public class ItineraryItemService {
                 );
             }
 
+            if(reservation.getConfirmedExtraction()!=null && (!java.util.Objects.equals(item.getStartDateTime(),reservation.getStartDateTime())
+                    || !java.util.Objects.equals(item.getEndDateTime(),reservation.getEndDateTime())))
+                throw new ResponseStatusException(HttpStatus.CONFLICT,"Document-linked itinerary timing must match the authoritative booking.");
             item.setReservation(reservation);
         }
 
@@ -266,6 +269,9 @@ public class ItineraryItemService {
                     "Itinerary item end time cannot be before start time"
             );
         }
+        if(existingItem.getReservation()!=null && existingItem.getReservation().getConfirmedExtraction()!=null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"Document-linked itinerary facts require the booking correction/amendment workflow.");
+
         Trip trip = existingItem.getItinerary().getTrip();
 
         validateWithinTripDates(trip, updatedItem.getStartDateTime(), updatedItem.getEndDateTime());
@@ -313,6 +319,9 @@ public class ItineraryItemService {
                 );
             }
 
+            if(reservation.getConfirmedExtraction()!=null && (!java.util.Objects.equals(updatedItem.getStartDateTime(),reservation.getStartDateTime())
+                    || !java.util.Objects.equals(updatedItem.getEndDateTime(),reservation.getEndDateTime())))
+                throw new ResponseStatusException(HttpStatus.CONFLICT,"Document-linked itinerary timing must match the authoritative booking.");
             existingItem.setReservation(reservation);
             existingItem.setActivity(null);
         }
@@ -336,6 +345,8 @@ public class ItineraryItemService {
             LocalDateTime endDateTime
     ) {
 
+        if(item.getReservation()!=null && item.getReservation().getConfirmedExtraction()!=null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"Document-linked itinerary timing requires the booking correction/amendment workflow.");
         item.setStartDateTime(startDateTime);
         item.setEndDateTime(endDateTime);
 

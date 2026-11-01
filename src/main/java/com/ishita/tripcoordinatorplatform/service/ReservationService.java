@@ -78,6 +78,7 @@ public class ReservationService {
         return reservationRepository.findByTrip_Id(tripId);
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public Reservation updateReservation(
             Long tripId,
             Long reservationId,
@@ -95,7 +96,7 @@ public class ReservationService {
         }
 
         Reservation existingReservation = reservationRepository
-                .findById(reservationId)
+                .lockEndingLocation(tripId,reservationId)
                 .orElseThrow(() ->
                         new ResponseStatusException(
                                 HttpStatus.NOT_FOUND,
@@ -110,6 +111,8 @@ public class ReservationService {
             );
         }
 
+        if(existingReservation.getConfirmedExtraction()!=null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"Document-linked booking facts require the correction/amendment workflow; generic updates are not permitted.");
         existingReservation.setType(updatedReservation.getType());
         existingReservation.setName(updatedReservation.getName());
         existingReservation.setStartDateTime(updatedReservation.getStartDateTime());

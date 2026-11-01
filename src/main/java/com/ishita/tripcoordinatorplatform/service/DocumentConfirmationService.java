@@ -28,13 +28,12 @@ public class DocumentConfirmationService {
                     if (!documents.existsByIdAndTrip_Id(documentId, tripId)) {
                         return new ResponseStatusException(HttpStatus.NOT_FOUND, "Travel document not found");
                     }
-                    return new IllegalArgumentException("Travel document is not ready for confirmation");
+                    return TourCorrectionException.invalid("Travel document is not ready for confirmation");
                 });
         return switch (documentType) {
             case FLIGHT_CONFIRMATION -> new ConfirmDocumentResponse(flights.confirm(tripId, documentId).reservationIds());
-            case ATTRACTION_TICKET, TOUR_BOOKING -> attractionTours.confirm(tripId, documentId,
-                    request == null ? null : request.participantIds());
-            default -> throw new IllegalArgumentException("Confirmation is not implemented for this document type");
+            case ATTRACTION_TICKET, TOUR_BOOKING -> attractionTours.confirmReviewed(tripId, documentId, request);
+            default -> throw TourCorrectionException.invalid("Confirmation is not implemented for this document type");
         };
     }
 }

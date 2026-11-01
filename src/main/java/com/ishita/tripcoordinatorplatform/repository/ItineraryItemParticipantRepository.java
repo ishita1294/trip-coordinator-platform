@@ -11,7 +11,11 @@ public interface ItineraryItemParticipantRepository extends JpaRepository<Itiner
 
     List<ItineraryItemParticipant> findByItineraryItem_Id(Long itineraryItemId);
 
+    @org.springframework.data.jpa.repository.EntityGraph(type = org.springframework.data.jpa.repository.EntityGraph.EntityGraphType.LOAD, attributePaths = {"itineraryItem.itinerary.trip", "itineraryItem.activity.destination", "itineraryItem.reservation"})
     List<ItineraryItemParticipant> findByTripMember_Id(Long tripMemberId);
+
+    @org.springframework.data.jpa.repository.Query("select distinct p.itineraryItem.id from ItineraryItemParticipant p where p.itineraryItem.itinerary.trip.id = :tripId")
+    List<Long> findAssignedItemIdsByTripId(@org.springframework.data.repository.query.Param("tripId") Long tripId);
 
     boolean existsByItineraryItem_IdAndTripMember_Id(
             Long itineraryItemId,

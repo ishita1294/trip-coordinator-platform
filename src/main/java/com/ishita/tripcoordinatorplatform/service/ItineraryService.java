@@ -6,6 +6,7 @@ import com.ishita.tripcoordinatorplatform.repository.ItineraryRepository;
 import com.ishita.tripcoordinatorplatform.repository.TripRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -48,5 +49,17 @@ public class ItineraryService {
     public Itinerary getItinerary(Long tripId) {
         return itineraryRepository.findByTrip_Id(tripId).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "Itinerary not found for this trip"));
+    }
+
+    /** Repair a legacy trip only inside the authorized write transaction. The trip lock serializes concurrent confirmations. */
+    @Transactional
+    public Itinerary ensureItinerary(Long tripId) {
+        Trip trip = tripRepository.lockForMembershipChange(tripId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Trip not found"));
+        return itineraryRepository.findByTrip_Id(tripId).orElseGet(() -> {
+            Itinerary itinerary = new Itinerary();
+            itinerary.setTrip(trip);
+            return itineraryRepository.save(itinerary);
+        });
     }
 }
