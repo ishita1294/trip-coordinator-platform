@@ -38,15 +38,6 @@ public class DocumentProcessingFinalizationService {
         return persist(documentId, attemptId, documentType, extractedData);
     }
 
-    /** Staged internal pathway; retains the same transaction, ownership fencing and immutable insert. */
-    @Transactional(timeout = 10)
-    public TravelDocumentProcessingResponse finalizeSemanticDocument(Long documentId, UUID attemptId,
-            TravelDocumentType documentType, SemanticTourExtraction result, String expectedSourceSha256) {
-        if (!isTour(documentType)) throw new IllegalArgumentException("Semantic output requires an attraction/tour document");
-        String json = new TourExtractionCodec(new tools.jackson.databind.json.JsonMapper()).encodeSemantic(result, expectedSourceSha256);
-        return persist(documentId, attemptId, documentType, json);
-    }
-
     /** Validates original-byte provenance before the existing fenced, immutable insert. */
     @Transactional(timeout = 10)
     public TravelDocumentProcessingResponse finalizeSemanticV3Document(Long documentId, UUID attemptId,

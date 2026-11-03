@@ -7,10 +7,6 @@ public interface AttractionTourDocumentExtractor {
         throw new UnsupportedOperationException("Native SourceBooking extraction is unavailable");
     }
 
-    /** Staged v2 contract; production processing remains on extract() until consumers are integrated. */
-    default SemanticTourExtraction extractSemantic(DocumentAiInput document) {
-        throw new UnsupportedOperationException("Semantic extraction is not supported by this adapter");
-    }
     /** Extracts the current semantic contract when the processing job explicitly selects it. */
     default SemanticTourExtractionV3 extractSemanticV3(DocumentAiInput document) {
         throw new UnsupportedOperationException(

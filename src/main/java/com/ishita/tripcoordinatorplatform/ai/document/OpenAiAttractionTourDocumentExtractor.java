@@ -194,46 +194,6 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
         return response;
     }
 
-    /** Explicit opt-in only. No worker/controller switches to this format in Slice 1. */
-    @Override
-    public SemanticTourExtraction extractSemantic(DocumentAiInput document) {
-        if (document == null || document.content() == null || document.content().length == 0)
-            throw new IllegalArgumentException("Document content is required for semantic extraction");
-        // Bind provenance to the same snapshot that is sent, even if a caller later mutates its byte array.
-        var source = new DocumentAiInput(document.originalFileName(), document.contentType(), document.content().clone());
-        String digest;
-        try {
-            digest = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(source.content()));
-        } catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
-        var response = readDocument(source, SemanticTourSchema.INSTRUCTIONS, SemanticTourSchema.schema(), "tour_semantic_v2");
-        if (response.error().isPresent() || response.incompleteDetails().isPresent()
-                || !response.status().filter(com.openai.models.responses.ResponseStatus.COMPLETED::equals).isPresent())
-            throw new InvalidDocumentExtractionException("Semantic extraction response was not completed");
-        String text = response.output().stream().flatMap(i -> i.message().stream()).flatMap(m -> m.content().stream())
-                .flatMap(c -> c.outputText().stream()).map(t -> t.text()).collect(Collectors.joining());
-        SemanticTourExtraction.ModelOutput parsed;
-        try {
-            var tree = jsonMapper.reader().with(tools.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS,
-                    tools.jackson.databind.DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY).readTree(text);
-            parsed = jsonMapper.rebuild().disable(tools.jackson.databind.MapperFeature.ALLOW_COERCION_OF_SCALARS)
-                    .build().readerFor(SemanticTourExtraction.ModelOutput.class)
-                    .with(tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
-                            tools.jackson.databind.DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES,
-                            tools.jackson.databind.DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
-                    .without(tools.jackson.databind.DeserializationFeature.ACCEPT_FLOAT_AS_INT)
-                    .readValue(tree.toString());
-        } catch (JacksonException | NullPointerException malformed) {
-            throw new InvalidDocumentExtractionException(InvalidDocumentExtractionException.Code.MALFORMED_JSON,
-                    "Invalid semantic extraction response");
-        }
-        if (parsed == null) throw new InvalidDocumentExtractionException("Semantic extraction is required");
-        var result = new SemanticTourExtraction(parsed.schemaVersion(),
-                new SemanticTourExtraction.Provenance(digest, model, SemanticTourExtraction.PROMPT_VERSION,
-                        response.id(), java.time.Instant.now()), parsed.bookings());
-        new SemanticTourExtractionValidator().validate(result, digest);
-        return result;
-    }
-
     /** Uses the V3.4 contract selected by the processing job. */
     @Override
     public SemanticTourExtractionV3 extractSemanticV3(DocumentAiInput document) {
