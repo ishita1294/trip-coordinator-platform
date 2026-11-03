@@ -174,10 +174,10 @@ public class TravelDocumentProcessingService {
                 if(version==TourExtractionCodec.Version.SOURCE_BOOKING_V1_REVIEW) {
                     nativeInput=new DocumentAiInput(aiInput.originalFileName(),aiInput.contentType(),aiInput.content().clone());
                     long providerStarted=System.nanoTime();
-                    nativeResult=attractionTourDocumentExtractor.extractSourceBookingV1(nativeInput);
+                    nativeResult=attractionTourDocumentExtractor.extractSourceBooking(nativeInput);
                     org.slf4j.LoggerFactory.getLogger(getClass()).info("Document native stage documentId={} jobId={} attemptId={} stage=extraction elapsedMs={}",documentId,document.getProcessingJobId(),attemptId,(System.nanoTime()-providerStarted)/1_000_000);
                     long validateStarted=System.nanoTime();
-                    new com.ishita.tripcoordinatorplatform.ai.document.SourceBookingReaderV1().read(nativeResult,jsonMapper,nativeInput);
+                    new com.ishita.tripcoordinatorplatform.ai.document.SourceBookingReader().read(nativeResult,jsonMapper,nativeInput);
                     org.slf4j.LoggerFactory.getLogger(getClass()).info("Document native stage documentId={} jobId={} attemptId={} stage=validation elapsedMs={}",documentId,document.getProcessingJobId(),attemptId,(System.nanoTime()-validateStarted)/1_000_000);
                 } else if (version == TourExtractionCodec.Version.SEMANTIC_V3_4) {
                     if (!"tour-semantic-3.4".equals(SemanticTourExtractionV3.PROMPT_VERSION))
@@ -220,7 +220,7 @@ public class TravelDocumentProcessingService {
         TravelDocumentProcessingResponse result;
         try {
             if(nativeResult!=null) {
-                result=finalizationService.finalizeSourceBookingV1(documentId,attemptId,documentType,nativeResult,nativeInput);
+                result=finalizationService.finalizeSourceBooking(documentId,attemptId,documentType,nativeResult,nativeInput);
             } else if (semanticV3Result != null) {
                 result = finalizationService.finalizeSemanticV3Document(documentId, attemptId, documentType, semanticV3Result, sourceSha256);
             } else {
@@ -275,12 +275,12 @@ public class TravelDocumentProcessingService {
             throw new IllegalStateException("Stored extraction JSON is empty");
         }
 
-        if(com.ishita.tripcoordinatorplatform.ai.document.SourceBookingStoredV1.isNativeVersion(extractedData)) {
+        if(com.ishita.tripcoordinatorplatform.ai.document.StoredSourceBooking.isNativeVersion(extractedData)) {
             if(extraction.getTravelDocument()==null||!Objects.equals(document.getId(),extraction.getTravelDocument().getId()))
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND);
             try(var input=documentStorage.open(document.getStorageKey())) {
                 var original=new DocumentAiInput(document.getOriginalFileName(),document.getContentType(),input.readAllBytes());
-                var stored=com.ishita.tripcoordinatorplatform.ai.document.SourceBookingStoredV1.read(extraction.getExtractedData(),jsonMapper,original);
+                var stored=com.ishita.tripcoordinatorplatform.ai.document.StoredSourceBooking.read(extraction.getExtractedData(),jsonMapper,original);
                 return new TravelDocumentExtractionResponse(extraction.getId(),document.getId(),document.getDocumentType(),extraction.getCreatedAt(),
                         extractedData,List.of(),false,null,stored.review(jsonMapper,original),stored.provenance());
             }catch(IOException unavailable){throw new IllegalStateException("Original source is unavailable for native review",unavailable);}

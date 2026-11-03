@@ -3,13 +3,13 @@ package com.ishita.tripcoordinatorplatform.ai.document;
 import java.time.Duration;
 import java.util.*;
 import tools.jackson.databind.json.JsonMapper;
-import static com.ishita.tripcoordinatorplatform.ai.document.SourceBookingExtractionV1.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.SourceBookingExtraction.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.Status.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.SemanticBookingEligibility.Disposition.*;
 
 /** Inactive read-only consumer. Readiness is not authorization or permission to persist/confirm. */
-public final class SourceBookingReviewV1 {
-    private SourceBookingReviewV1() {}
+public final class SourceBookingReview {
+    private SourceBookingReview() {}
     public enum Association { APPLIES, POSSIBLE, DOCUMENT_CONTEXT }
     public record Issue(String code, String field, boolean blocking) {}
     public record ClauseView(Clause original, List<Source> passages, List<Source> conditions, List<Source> qualifications) {
@@ -20,7 +20,7 @@ public final class SourceBookingReviewV1 {
             SemanticBookingLifecycleV3.State lifecycle, boolean reviewReady, List<Issue> issues) {
         public Eligibility { issues=List.copyOf(issues); }
     }
-    public record BookingReview(Booking original, SourceBookingReaderV1.BookingView deterministic,
+    public record BookingReview(Booking original, SourceBookingReader.BookingView deterministic,
             List<ClauseLink> clauses, Eligibility eligibility) {
         public BookingReview { clauses=List.copyOf(clauses); }
     }
@@ -35,7 +35,7 @@ public final class SourceBookingReviewV1 {
     }
     /** Validates through the existing source-facts reader. No V3 objects or legacy decoding are constructed. */
     public static Review read(String json, JsonMapper mapper, DocumentAiInput original) {
-        var read=new SourceBookingReaderV1().read(json,mapper,original);var facts=read.facts();
+        var read=new SourceBookingReader().read(json,mapper,original);var facts=read.facts();
         var sources=new HashMap<Integer,Source>();facts.sources().forEach(s->sources.put(s.id(),s));
         var clauses=facts.clauses().stream().map(c->new ClauseView(c,passages(c.sources(),sources),
                 passages(c.conditionSources(),sources),passages(c.qualificationSources(),sources))).toList();
@@ -55,7 +55,7 @@ public final class SourceBookingReviewV1 {
                 facts.coverageWarning(),read.textMatchedSources(),read.unverifiedSources(),false);
     }
     public static Eligibility reassessLifecycle(Review review,int index,Map<Integer,SemanticBookingLifecycleV3.State> declaredStates) {
-        var facts=new SourceBookingExtractionV1(SCHEMA_VERSION,CONTRACT,review.sources(),review.bookings().stream().map(BookingReview::original).toList(),
+        var facts=new SourceBookingExtraction(SCHEMA_VERSION,CONTRACT,review.sources(),review.bookings().stream().map(BookingReview::original).toList(),
                 review.clauses().stream().map(c->c.original()).toList(),review.coverageWarning());
         var b=review.bookings().get(index);
         return assess(facts,b.original(),b.deterministic(),b.clauses(),declaredStates);
@@ -82,8 +82,8 @@ public final class SourceBookingReviewV1 {
         if(required && fact.status()!=CLEAR || !required && (fact.status()==AMBIGUOUS || fact.status()==CONFLICTING))
             block(issues,"SEMANTIC_FACT_UNRESOLVED",field);
     }
-    private static Eligibility assess(SourceBookingExtractionV1 facts,Booking b,
-            SourceBookingReaderV1.BookingView deterministic,List<ClauseLink> links,Map<Integer,SemanticBookingLifecycleV3.State> declaredStates) {
+    private static Eligibility assess(SourceBookingExtraction facts,Booking b,
+            SourceBookingReader.BookingView deterministic,List<ClauseLink> links,Map<Integer,SemanticBookingLifecycleV3.State> declaredStates) {
         var issues=new ArrayList<Issue>();
         var state=declaredStates.getOrDefault(b.index(),b.lifecycle().status()==CLEAR?b.lifecycle().value():SemanticBookingLifecycleV3.State.UNKNOWN);
         var disposition=switch(state) {case CANCELLED,SUPERSEDED->HISTORICAL;case ACTIVE->ACTIVE_ELIGIBLE;default->REQUIRES_REVIEW;};
@@ -107,7 +107,7 @@ public final class SourceBookingReviewV1 {
             block(issues,"INVALID_BOOKING_LOCATION","endingPoint");
         if(b.meetingPoint().status()==CLEAR)location(issues,b.meetingPoint().value(),"meetingPoint");
         if(b.endingPoint().status()==CLEAR && b.endingPoint().value().location()!=null)location(issues,b.endingPoint().value().location(),"endingPoint");
-        var projected=new EnumMap<Target,SourceBookingReaderV1.Projected>(Target.class);
+        var projected=new EnumMap<Target,SourceBookingReader.Projected>(Target.class);
         deterministic.projections().forEach(p->projected.put(p.field(),p));
         for(var target:List.of(Target.START,Target.END,Target.REQUIRED_ARRIVAL)) {
             var claims=b.schedules().stream().filter(s->s.target()==target && s.fact().status()!=MISSING && !deterministic.equivalentScheduleIds().contains(s.id())).toList();
@@ -123,7 +123,7 @@ public final class SourceBookingReviewV1 {
             if(!representable)block(issues,"TEMPORAL_CONSTRAINT_NOT_REPRESENTABLE",target.name());
             var p=projected.get(target);
             if(p==null)block(issues,"SCHEDULE_PROJECTION_REQUIRED",target.name());
-            else if(p.temporalResolution()!=SourceBookingReaderV1.TemporalResolution.UNIQUE_INSTANT)
+            else if(p.temporalResolution()!=SourceBookingReader.TemporalResolution.UNIQUE_INSTANT)
                 block(issues,"AMBIGUOUS_BOOKING_TIME",target.name());
             // As in authoritativeV3, local arithmetic cannot be promoted to elapsed-authoritative timing.
             if(wallClock(claim.id(),b,new HashSet<>()))block(issues,"LOCAL_ARITHMETIC_NOT_AUTHORITATIVE",target.name());

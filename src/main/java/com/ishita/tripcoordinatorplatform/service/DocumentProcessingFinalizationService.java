@@ -55,7 +55,7 @@ public class DocumentProcessingFinalizationService {
 
     /** Read-only native envelope; source digest/job identity are assigned by this fenced transaction, never the model. */
     @Transactional(timeout=10)
-    public TravelDocumentProcessingResponse finalizeSourceBookingV1(Long documentId,UUID attemptId,TravelDocumentType type,String raw,
+    public TravelDocumentProcessingResponse finalizeSourceBooking(Long documentId,UUID attemptId,TravelDocumentType type,String raw,
             com.ishita.tripcoordinatorplatform.ai.document.DocumentAiInput original) {
         if(!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive())
             throw new IllegalStateException("Native finalization requires an active transaction");
@@ -65,7 +65,7 @@ public class DocumentProcessingFinalizationService {
         var job=jobs.findByDocumentIdAndProcessingJobId(documentId,document.getProcessingJobId()).orElseThrow(DocumentProcessingException::ownershipLost);
         if(!TourExtractionCodec.Version.SOURCE_BOOKING_V1_REVIEW.name().equals(job.getExtractionContract()))throw DocumentProcessingException.ownershipLost();
         var mapper=new tools.jackson.databind.json.JsonMapper();
-        var stored=com.ishita.tripcoordinatorplatform.ai.document.SourceBookingStoredV1.create(raw,mapper,original,document.getProcessingJobId(),document.getUploadedAt(),job.getCreatedAt(),Instant.now());
+        var stored=com.ishita.tripcoordinatorplatform.ai.document.StoredSourceBooking.create(raw,mapper,original,document.getProcessingJobId(),document.getUploadedAt(),job.getCreatedAt(),Instant.now());
         String json=mapper.writeValueAsString(stored);if(json.length()>100_000)throw new InvalidDocumentExtractionException("Native review exceeds immutable storage bound");
         var response=persist(documentId,attemptId,type,json);
         org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization(){

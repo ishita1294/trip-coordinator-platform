@@ -42,7 +42,7 @@ public class BookingConfirmationReceiptService {
             var decoded=new TourExtractionCodec(mapper).decode(extraction.getExtractedData());schemaVersion=decoded.schemaVersion();
             prompt=schemaVersion==1?null:mapper.readTree(extraction.getExtractedData()).path("provenance").path("promptVersion").asString();
         } else {
-            var nativeRead=new com.ishita.tripcoordinatorplatform.ai.document.SourceBookingReaderV1().read(extraction.getExtractedData(),mapper,nativeSource);
+            var nativeRead=new com.ishita.tripcoordinatorplatform.ai.document.SourceBookingReader().read(extraction.getExtractedData(),mapper,nativeSource);
             schemaVersion=nativeRead.facts().schemaVersion();prompt=nativeRead.facts().contract();nativeSourceHash=nativeRead.sourceSha256();
         }
         var tree=mapper.readTree(extraction.getExtractedData());
