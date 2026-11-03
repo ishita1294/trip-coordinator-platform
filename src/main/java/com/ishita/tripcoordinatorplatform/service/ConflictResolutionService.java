@@ -203,8 +203,9 @@ public class ConflictResolutionService {
     }
 
     /**
-     * Generates and validates temporary mock AI suggestions
-     * for an itinerary conflict.
+     * Suggests ways to resolve an itinerary conflict. The suggestions come from simple built-in rules (move a flexible
+     * item to just after or just before the other one, keeping its length), not from an AI model. Each one is then
+     * checked against the trip dates and the whole member schedule, and unsafe ones are dropped.
      */
     public ConflictResolutionResponse suggestResolutions(
             Long tripId,

@@ -51,8 +51,7 @@
 
 .document-upload,
 .document-card,
-.reservation-block,
-.extraction-list li {
+.reservation-block {
   border: 1px solid #dce2ea;
   border-radius: 8px;
   background: #ffffff;
@@ -72,8 +71,7 @@
   max-width: 100%;
 }
 
-.document-list,
-.extraction-list {
+.document-list {
   display: grid;
   gap: 12px;
 }
@@ -94,19 +92,6 @@
   background: #f2faf4;
   color: #28583b;
   padding: 14px 18px;
-}
-
-.extraction-list {
-  padding: 0;
-  list-style: none;
-}
-
-.extraction-list li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
 }
 
 .reservation-block {

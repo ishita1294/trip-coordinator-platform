@@ -52,11 +52,6 @@ public class SourceBookingAcceptedReviewService {
     Review compose(TravelDocument doc,TravelDocumentExtraction extraction,DocumentAiInput original,List<Change> pending) {
         return compose(doc,extraction,original,pending,null);
     }
-    /** Receipt-scoped reconstruction excludes later accepted changes; never rewrites a confirmation snapshot. */
-    Review composeAt(TravelDocument doc,TravelDocumentExtraction extraction,DocumentAiInput original,Instant cutoff) {
-        if(cutoff==null)throw TourCorrectionException.invalid("Confirmation cutoff is required.");
-        return compose(doc,extraction,original,List.of(),cutoff);
-    }
     private Review compose(TravelDocument doc,TravelDocumentExtraction extraction,DocumentAiInput original,List<Change> pending,Instant cutoff) {
         var tree=mapper.readTree(extraction.getExtractedData());
         var base=SourceBookingStoredV1.isStored(tree)?SourceBookingStoredV1.read(extraction.getExtractedData(),mapper,original).review(mapper,original)
@@ -81,7 +76,7 @@ public class SourceBookingAcceptedReviewService {
                 if(c==null || c.bookingIndex()==null || c.bookingIndex()<0 || c.bookingIndex()>=base.bookings().size()
                         || c.field()==null || !TourConfirmationPolicy.FIELDS.contains(c.field()) && !NativeScheduleClarification.FIELD.equals(c.field()) || c.originalValue()==null || c.proposedValue()==null)
                     throw TourCorrectionException.invalid("Invalid accepted booking field correction.");
-                var originalValue=values(base,base.bookings().get(c.bookingIndex())).get(c.field());
+                var originalValue=values(base.bookings().get(c.bookingIndex())).get(c.field());
                 if(!canonical(c.field(),originalValue).equals(canonical(c.field(),c.originalValue())))
                     throw TourCorrectionException.stale("Original field value changed; reload the source review.");
                 if(canonical(c.field(),originalValue).equals(canonical(c.field(),c.proposedValue())))
@@ -111,7 +106,7 @@ public class SourceBookingAcceptedReviewService {
         }
         var rows=new ArrayList<BookingOverlay>();var effectiveRows=new ArrayList<SourceBookingReviewV1.BookingReview>();var eligible=new ArrayList<Integer>();
         for(var row:base.bookings()) {
-            int index=row.original().index();var values=values(base,row);var corrected=new HashSet<String>();
+            int index=row.original().index();var values=values(row);var corrected=new HashSet<String>();
             for(var c:merged.values())if(c.bookingIndex()==index){values.put(c.field(),c.proposedValue().deepCopy());corrected.add(c.field());}
             var invalidated=new HashSet<String>();var effective=base;
             if(corrected.contains(NativeScheduleClarification.FIELD))effective=NativeScheduleClarification.apply(base,index,values.get(NativeScheduleClarification.FIELD),mapper,original);
@@ -132,7 +127,7 @@ public class SourceBookingAcceptedReviewService {
                 for(String field:dependentFields(row.original(),corrected))
                     if(!corrected.contains(field)){values.put(field,mapper.nullNode());invalidated.add(field);}
             } else if(effective!=base) {
-                var recomputed=values(effective,effective.bookings().get(index));
+                var recomputed=values(effective.bookings().get(index));
                 for(String field:TEMPORAL)if(!corrected.contains(field))values.put(field,recomputed.get(field));
             }
             endpoint(values,corrected,issues);
@@ -149,7 +144,7 @@ public class SourceBookingAcceptedReviewService {
         if(c==null || c.bookingIndex()==null || c.bookingIndex()<0 || c.bookingIndex()>=base.bookings().size()
                 || c.field()==null || !TourConfirmationPolicy.FIELDS.contains(c.field()) && !NativeScheduleClarification.FIELD.equals(c.field()) || c.originalValue()==null || c.proposedValue()==null)
             throw TourCorrectionException.invalid("Invalid native correction field.");
-        var original=values(base,base.bookings().get(c.bookingIndex())).get(c.field());
+        var original=values(base.bookings().get(c.bookingIndex())).get(c.field());
         if(!canonical(c.field(),original).equals(canonical(c.field(),c.originalValue())))
             throw TourCorrectionException.stale("Original field changed; reload the immutable extraction.");
         if(canonical(c.field(),original).equals(canonical(c.field(),c.proposedValue())))
@@ -200,7 +195,7 @@ public class SourceBookingAcceptedReviewService {
     private static TourCorrectionException unsupportedTemporal(){return TourCorrectionException.validation(
             "TEMPORAL_CORRECTION_REQUIRES_NATIVE_CONSTRAINT_REVIEW","Correction cannot preserve the native schedule relation, evidence or arithmetic.");}
     private static final Set<String> TEMPORAL=Set.of("startDate","startTime","endDate","endTime","timezone","durationMinutes","arrivalLeadMinutes","requiredArrivalLocal");
-    private Map<String,JsonNode> values(SourceBookingReviewV1.Review review,SourceBookingReviewV1.BookingReview row) {
+    private Map<String,JsonNode> values(SourceBookingReviewV1.BookingReview row) {
         var b=row.original();var out=new LinkedHashMap<String,JsonNode>();
         out.put("name",node(b.name()));out.put("provider",node(b.provider()));out.put("bookingReference",node(b.reference()));out.put("timezone",node(b.timezone()));
         out.put(NativeScheduleClarification.FIELD,mapper.createObjectNode());

@@ -1,7 +1,6 @@
 package com.ishita.tripcoordinatorplatform.ai.document;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 // Represents one flight leg proposed from the uploaded document.

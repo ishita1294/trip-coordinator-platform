@@ -247,7 +247,7 @@ public class GoogleUsageLedger {
             var starts=List.of(utc.truncatedTo(java.time.temporal.ChronoUnit.HOURS),utc.toLocalDate().atStartOfDay(ZoneOffset.UTC),utc.withDayOfMonth(1).toLocalDate().atStartOfDay(ZoneOffset.UTC));
             var ends=List.of(starts.get(0).plusHours(1),starts.get(1).plusDays(1),starts.get(2).plusMonths(1));
             var keys=List.of("GOOGLE_UTC_HOUR","GOOGLE_UTC_DAY","GOOGLE_UTC_MONTH"); var limits=List.of(p.hour,p.day,p.month);
-            var frame=admissionWindows(p,starts,ends,keys,limits);var windows=frame.windows;var ids=windows.stream().map(Window::id).toList();
+            var frame=admissionWindows(p,starts,ends,keys,limits);var windows=frame.windows;
             if(windows.size()!=3) throw error("LEDGER_INVALID","Accounting window creation/locking incomplete.");
             Instant lockedTime=frame.time;compatible(p,lockedTime);checkWindows(windows,p,lockedTime,amount,true);
             UUID id=UUID.randomUUID();

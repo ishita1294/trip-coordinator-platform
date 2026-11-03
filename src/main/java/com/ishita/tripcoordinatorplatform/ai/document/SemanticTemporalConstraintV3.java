@@ -89,7 +89,7 @@ public record SemanticTemporalConstraintV3(Target target, SemanticFactV3<Require
     }
     /** Corrections cannot erase or shift constraints, nor retain constraints derived from changed operands. */
     public static boolean correctionCompatible(SemanticTourExtractionV3.Booking b, Set<String> edits) {
-        if (b.temporalConstraints().isEmpty()) return true; // Explicit historical 3.1 compatibility.
+        if (b.temporalConstraints().isEmpty()) return true; // A booking with no recorded time rules has nothing to protect.
         var temporal = Set.of("startDate","startTime","endDate","endTime","timezone","requiredArrivalLocal","arrivalLeadMinutes","durationMinutes");
         if (edits.stream().anyMatch(temporal::contains)) return false;
         return b.temporalConstraints().stream().noneMatch(c -> {

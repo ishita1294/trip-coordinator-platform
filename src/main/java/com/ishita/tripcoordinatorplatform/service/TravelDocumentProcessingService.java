@@ -5,9 +5,7 @@ import com.ishita.tripcoordinatorplatform.ai.document.DocumentProcessingBudget;
 import com.ishita.tripcoordinatorplatform.repository.DocumentProcessingOutboxRepository;
 import com.ishita.tripcoordinatorplatform.ai.document.InvalidDocumentExtractionException;
 import com.ishita.tripcoordinatorplatform.ai.document.SemanticTourExtractionV3Validator;
-import com.ishita.tripcoordinatorplatform.ai.document.SemanticTourExtractionValidator;
 import com.ishita.tripcoordinatorplatform.ai.document.SemanticTourExtractionV3;
-import com.ishita.tripcoordinatorplatform.ai.document.SemanticTourExtraction;
 import com.ishita.tripcoordinatorplatform.ai.document.TourExtractionCodec;
 import com.ishita.tripcoordinatorplatform.ai.document.AttractionTourDocumentExtractor;
 import com.ishita.tripcoordinatorplatform.ai.document.AttractionTourExtractionValidator;
@@ -110,7 +108,7 @@ public class TravelDocumentProcessingService {
         return processClaimedDocument(documentId, attemptId, version);
     }
 
-    // Internal overload retained for historical contract checks; normal workers resolve the durable job first.
+    // Internal overload that takes the extraction version directly; normal workers resolve the durable job first.
     TravelDocumentProcessingResponse processClaimedDocument(Long documentId, UUID attemptId,
             TourExtractionCodec.Version version) {
         Objects.requireNonNull(attemptId, "Processing attempt ID is required");

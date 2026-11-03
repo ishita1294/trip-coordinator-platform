@@ -28,14 +28,6 @@ public class BookingConfirmationReceiptService {
                          Long reservationId,String expectedExtractionSha256,Long acceptedReviewId,Long acceptedReviewVersion) {}
     @Transactional(propagation=Propagation.MANDATORY)
     public BookingConfirmationReceipt record(Record command){return record(command,null);}
-    /** Explicit inactive native entry; ordinary legacy recording never dispatches here. */
-    @Transactional(propagation=Propagation.MANDATORY)
-    public BookingConfirmationReceipt recordSourceBookingV1(Record command,com.ishita.tripcoordinatorplatform.ai.document.DocumentAiInput original){
-        if(!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive())
-            throw new IllegalStateException("Native receipt must participate in the confirmation transaction");
-        if(original==null)throw TourCorrectionException.invalid("Native receipt requires the trusted original source.");
-        return record(command,original);
-    }
     private BookingConfirmationReceipt record(Record command,com.ishita.tripcoordinatorplatform.ai.document.DocumentAiInput nativeSource){
         if(command==null || command.actorId()==null || command.extractionId()==null || command.reservationId()==null || command.originalBookingIndex()<0)
             throw TourCorrectionException.invalid("Identify the confirmed source booking, reservation and actor.");

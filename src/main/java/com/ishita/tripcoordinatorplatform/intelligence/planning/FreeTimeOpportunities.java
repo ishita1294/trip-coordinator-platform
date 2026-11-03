@@ -107,7 +107,7 @@ public class FreeTimeOpportunities {
         if (completedAt == null) completedAt = Map.of();
         if (completedAt.size() > 100) throw new IllegalArgumentException("Too many completion clarifications.");
         String revision = revision(tripId + ":" + userId + ":" + tripStart + ":" + tripEnd + ":" + facts.stream().sorted(Comparator.comparing(CommitmentReader.Scheduled::id)).toList() + ":" + new TreeMap<>(clarifications) + ":" + new TreeMap<>(completedAt) + ":" + new TreeMap<>(expectedEnds)+":"+hours+":"+hoursVersion);
-        List<Boundary> known = new ArrayList<>(); List<String> warnings = new ArrayList<>(); List<Opportunity> results = new ArrayList<>();
+        List<Boundary> known = new ArrayList<>(); List<String> warnings = new ArrayList<>();
         for (var item : facts) {
             String zone = item.timeZone() == null || item.timeZone().isBlank() ? clarifications.get(item.id()) : item.timeZone();
             Instant start = strict(item.start(), zone);

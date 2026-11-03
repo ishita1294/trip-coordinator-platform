@@ -1,6 +1,5 @@
 package com.ishita.tripcoordinatorplatform.repository;
 
-import com.ishita.tripcoordinatorplatform.model.Itinerary;
 import com.ishita.tripcoordinatorplatform.model.ItineraryItem;
 import org.springframework.data.jpa.repository.JpaRepository;
 
