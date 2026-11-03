@@ -3,7 +3,6 @@ package com.ishita.tripcoordinatorplatform.controller;
 import com.ishita.tripcoordinatorplatform.auth.CoreTripOperations;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 
-import com.ishita.tripcoordinatorplatform.model.ItineraryConflict;
 import com.ishita.tripcoordinatorplatform.model.ItineraryItem;
 import com.ishita.tripcoordinatorplatform.request.ApplyConflictResolutionRequest;
 import com.ishita.tripcoordinatorplatform.response.ItineraryConflictResponse;

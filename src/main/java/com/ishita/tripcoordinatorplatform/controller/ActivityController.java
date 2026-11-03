@@ -6,7 +6,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import com.ishita.tripcoordinatorplatform.model.Activity;
 import com.ishita.tripcoordinatorplatform.service.ActivityService;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
