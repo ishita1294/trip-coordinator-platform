@@ -25,9 +25,6 @@ import java.util.stream.Collectors;
 @Component
 public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocumentExtractor {
 
-    static final String COMPACT_JSON_INSTRUCTION = "Return compact JSON without whitespace outside strings. "
-            + "Do not omit or shorten any fields, values, evidence or uncertainty to achieve compactness.";
-
     static final String INSTRUCTIONS = """
             Extract attraction tickets and tour bookings from the attached document using the JSON schema.
             Return a bookings array, one entry per documented reservation or scheduled activity.
@@ -63,7 +60,6 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
     private final OpenAIClient client;
     private final String model;
     private final JsonMapper jsonMapper;
-    private final boolean lowReasoningCandidate;
     private final boolean fastProcessingEnabled;
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -71,7 +67,6 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
             @Value("${app.ai.openai.extraction-model}") String model,
             JsonMapper jsonMapper,
             @Value("${app.ai.openai.api-key:}") String apiKey,
-            @Value("${app.ai.openai.tour-v34-low-reasoning-candidate:false}") boolean lowReasoningCandidate,
             @Value("${app.ai.openai.tour-extraction-fast-enabled:${TOUR_EXTRACTION_FAST_ENABLED:false}}") boolean fastProcessingEnabled
     ) {
         if (model == null || model.isBlank()) {
@@ -79,17 +74,11 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
         }
         this.model = model;
         this.jsonMapper = jsonMapper;
-        requireSupportedCandidate(model, lowReasoningCandidate);
-        this.lowReasoningCandidate = lowReasoningCandidate;
         this.fastProcessingEnabled = fastProcessingEnabled;
         var builder = OpenAIOkHttpClient.builder().fromEnv().maxRetries(0)
                 .timeout(DocumentProcessingBudget.clientTimeout(DocumentProcessingBudget.Stage.EXTRACTION));
         if (apiKey != null && !apiKey.isBlank()) builder.apiKey(apiKey);
         this.client = builder.build();
-    }
-
-    public OpenAiAttractionTourDocumentExtractor(String model, JsonMapper mapper, String apiKey, boolean lowReasoningCandidate) {
-        this(model, mapper, apiKey, lowReasoningCandidate, false);
     }
 
     public OpenAiAttractionTourDocumentExtractor(String model, JsonMapper mapper, String apiKey) {
@@ -100,21 +89,9 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
         this(client, model, mapper, false);
     }
 
-    OpenAiAttractionTourDocumentExtractor(OpenAIClient client, String model, JsonMapper mapper, boolean lowReasoningCandidate) {
-        this(client, model, mapper, lowReasoningCandidate, false);
-    }
-
-    OpenAiAttractionTourDocumentExtractor(OpenAIClient client, String model, JsonMapper mapper,
-            boolean lowReasoningCandidate, boolean fastProcessingEnabled) {
-        requireSupportedCandidate(model, lowReasoningCandidate);
+    OpenAiAttractionTourDocumentExtractor(OpenAIClient client, String model, JsonMapper mapper, boolean fastProcessingEnabled) {
         this.client = client; this.model = model; this.jsonMapper = mapper;
-        this.lowReasoningCandidate = lowReasoningCandidate;
         this.fastProcessingEnabled = fastProcessingEnabled;
-    }
-
-    private static void requireSupportedCandidate(String model, boolean enabled) {
-        if (enabled && !"gpt-6-sol".equals(model))
-            throw new IllegalArgumentException("The V3.4 low-reasoning candidate requires gpt-6-sol");
     }
 
     @Override
@@ -266,9 +243,8 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
         String digest = TourExtractionCodec.sourceSha256(source.content());
         // Read any available text without requiring a text layer for supported scan/image inputs.
         var sourceEvidence = SemanticTourSourceEvidence.read(source);
-        ReasoningEffort effort = lowReasoningCandidate ? ReasoningEffort.LOW : null;
         var response = readDocument(source, SemanticTourSchemaV3.INSTRUCTIONS, SemanticTourSchemaV3.schema(),
-                SemanticTourExtractionV3.STRUCTURED_OUTPUT_NAME, effort);
+                SemanticTourExtractionV3.STRUCTURED_OUTPUT_NAME, null);
         if (response.error().isPresent() || response.incompleteDetails().isPresent()
                 || !response.status().filter(com.openai.models.responses.ResponseStatus.COMPLETED::equals).isPresent())
             throw new InvalidDocumentExtractionException("Semantic extraction response was not completed");
