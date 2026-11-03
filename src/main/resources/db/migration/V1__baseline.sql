@@ -1,6 +1,9 @@
 -- Baseline of the live AWS-DEV schema (structure only, no data), taken read-only with pg_dump on 2026-11-03.
 -- Existing databases are marked as already being at version 1 and this file is not run on them;
 -- an empty database builds the whole schema from here. Never edit this file; add V2, V3, ... for changes.
+-- Some functions mention tables that are created later in this file, so their bodies are checked only once everything exists.
+SET LOCAL check_function_bodies = false;
+
 --
 -- PostgreSQL database dump
 --
