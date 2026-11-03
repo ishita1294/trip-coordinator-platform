@@ -30,10 +30,6 @@ public class TravelDocumentProcessingController {
     }
 
     public TravelDocumentProcessingResponse processDocument(Long tripId,Long documentId){return processDocument(tripId,documentId,false);}
-    @GetMapping("/processing-options")
-    public java.util.Map<String,Boolean> processingOptions(@PathVariable Long tripId) {
-        return operations.read(tripId,()->{access.upload(tripId);return java.util.Map.of("sourceBookingReviewEnabled",queueService.sourceBookingReviewEnabled());});
-    }
     @PostMapping("/{documentId}/process")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public TravelDocumentProcessingResponse processDocument(

@@ -51,7 +51,6 @@ public class DocumentProcessingQueueService {
 
     @org.springframework.beans.factory.annotation.Value("${app.document-processing.source-booking-review-enabled:${SOURCE_BOOKING_REVIEW_ENABLED:false}}")
     private boolean sourceBookingReviewEnabled;
-    public boolean sourceBookingReviewEnabled(){return sourceBookingReviewEnabled;}
     @Transactional
     public TravelDocumentProcessingResponse queueDocument(Long tripId, Long documentId) {return queueDocument(tripId,documentId,false);}
     @Transactional
