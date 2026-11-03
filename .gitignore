@@ -70,3 +70,7 @@ commit-plan.md
 ### Notes and design docs stay local (README.md is the exception) ###
 *.md
 !README.md
+
+### Local log files ###
+*.log
+askai-logs*.txt
