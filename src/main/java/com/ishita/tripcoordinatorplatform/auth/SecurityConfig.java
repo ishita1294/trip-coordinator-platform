@@ -132,7 +132,6 @@ public class SecurityConfig {
                                 "/trips/{id:[0-9]+}/documents/{doc:[0-9]+}/extractions/{extraction:[0-9]+}"
                         ).authenticated()
                         .requestMatchers(HttpMethod.POST,
-                                "/users",
                                 "/trips/{id:[0-9]+}/documents",
                                 "/trips/{id:[0-9]+}/documents/upload-url",
                                 "/trips/{id:[0-9]+}/documents/complete-upload",
