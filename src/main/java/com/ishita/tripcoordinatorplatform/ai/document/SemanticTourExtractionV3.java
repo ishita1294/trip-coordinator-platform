@@ -56,7 +56,7 @@ public record SemanticTourExtractionV3(int schemaVersion, Provenance provenance,
                     arrivalLeadMinutes,meetingPoint,endingPoint,instructions,conditions,temporalConstraints,
                     SemanticBookingLifecycleV3.unestablished(),List.of());
         }
-        /** Source compatibility for historical 3.1 and existing synthetic callers. */
+        /** Shorter form for callers that do not supply the lifecycle or arrival-lead details. */
         public Booking(int bookingIndex, SemanticFactV3<String> name, SemanticFactV3<String> provider,
                 SemanticFactV3<String> bookingReference, SemanticFactV3<LocalMoment> start,
                 SemanticFactV3<LocalMoment> end, SemanticFactV3<String> timezone,

@@ -178,8 +178,7 @@ final class SemanticTourSchemaV3 {
         var root = new LinkedHashMap<>(SemanticTourSchema.schema());
         var defs = new LinkedHashMap<>((Map<String,Object>) root.get("$defs"));
         var integer = Map.<String,Object>of("type", "integer");
-        // Tightened 2026-11-01 without a prompt-version bump (see docs/V34_COMPACT_EXTRACTION_CONTRACT.md): the validator
-        // requires a location exactly for DIFFERENT_LOCATION, so generation must not offer any other combination.
+        // The validator requires a location exactly for DIFFERENT_LOCATION, so generation must not offer any other combination.
         defs.put("ending", ending());
         defs.put("evidence", object(Map.of("bookingIndex", nullable(Map.of("type","integer","minimum",0)),
                 "bookingAssociation", Map.of("type","string"), "quotation", Map.of("type","string"),
