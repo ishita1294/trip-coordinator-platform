@@ -9,7 +9,7 @@ import tools.jackson.databind.json.JsonMapper;
 /** Version boundary for immutable storage, not an adapter into legacy confirmation facts. */
 public final class TourExtractionCodec {
     public enum Version {
-        LEGACY, SEMANTIC_V2, SEMANTIC_V3_4, AUTO_V3_4, SEMANTIC_V3_4_COMPACT, AUTO_V3_4_COMPACT, FLIGHT_V1, UNSUPPORTED, SOURCE_BOOKING_V1_REVIEW;
+        LEGACY, SEMANTIC_V2, SEMANTIC_V3_4, AUTO_V3_4, FLIGHT_V1, UNSUPPORTED, SOURCE_BOOKING_V1_REVIEW;
 
         /** Jobs created before contract selection was added retain legacy behavior. */
         public static Version fromJobContract(String contract) {
