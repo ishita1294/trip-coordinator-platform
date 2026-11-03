@@ -172,12 +172,6 @@ final class SemanticTourSchemaV3 {
             only; the server assigns trusted provenance (contract tour-semantic-3.4).
             """;
 
-    private static Map<String, Object> described(Map<String, Object> shape, String description) {
-        var result = new LinkedHashMap<>(shape);
-        result.put("description", description);
-        return result;
-    }
-
     @SuppressWarnings("unchecked")
     static Map<String, Object> schema() {
         // Reuse unchanged typed domain shapes, never modify the historical v2 schema.

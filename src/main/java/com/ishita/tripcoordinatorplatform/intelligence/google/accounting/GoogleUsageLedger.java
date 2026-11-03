@@ -287,10 +287,6 @@ public class GoogleUsageLedger {
             throw new GoogleAccountingException("COST_BUDGET_EXHAUSTED","Google estimated-cost allowance exhausted ("+names+"). Next blocking window boundary: "+display+"; admission also depends on other usage. Results are incomplete.",boundary);
         }
     }
-    private void changeCounters(List<Long> windows,long reserveDelta,long chargeDelta) {
-        if(jdbc.update("UPDATE explore_provider_usage_windows SET reserved_micros=reserved_micros+?,charged_micros=charged_micros+? WHERE id IN(?,?,?)",reserveDelta,chargeDelta,windows.get(0),windows.get(1),windows.get(2))!=3)
-            throw error("LEDGER_INVALID","Google accounting window update was incomplete.");
-    }
     private record LockedPhase(Policy policy,Reservation reservation,List<Window> windows,List<Operation> operations,Instant time) {}
     /** Pipeline dependent reads in one JDBC execution. PostgreSQL still locks policy → windows → reservation → operations. */
     private LockedPhase lockedPhase(UUID id,boolean dispatch) {

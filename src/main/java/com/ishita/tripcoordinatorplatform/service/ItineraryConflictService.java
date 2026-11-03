@@ -15,8 +15,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 public class ItineraryConflictService {
@@ -31,25 +29,6 @@ public class ItineraryConflictService {
         this.participantRepository = participantRepository;
         this.itineraryItemRepository = itineraryItemRepository;
         this.conflictRepository = conflictRepository;
-    }
-
-    public boolean haveSharedParticipant(
-            Long firstItemId,
-            Long secondItemId
-    ){
-        List<ItineraryItemParticipant> firstItemParticipants =
-                participantRepository.findByItineraryItem_Id(firstItemId);
-
-        List<ItineraryItemParticipant> secondItemParticipants =
-                participantRepository.findByItineraryItem_Id(secondItemId);
-
-        Set<Long> firstItemMemberIds = firstItemParticipants.stream()
-                .map(participant -> participant.getTripMember().getId())
-                .collect(Collectors.toSet());
-
-        return secondItemParticipants.stream()
-                .map(participant -> participant.getTripMember().getId())
-                .anyMatch(firstItemMemberIds::contains);
     }
 
     public List<ItineraryItem> findParticipantConflicts(
