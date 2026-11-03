@@ -93,7 +93,7 @@ public class AttractionTourDocumentConfirmationService {
         }
         AttractionTourExtractionResult proposal;
         try {
-            proposal = new com.ishita.tripcoordinatorplatform.ai.document.TourExtractionCodec(jsonMapper).decode(extraction.getExtractedData()).legacy();
+            new com.ishita.tripcoordinatorplatform.ai.document.TourExtractionCodec(jsonMapper).decode(extraction.getExtractedData()).legacy();
         } catch (JacksonException | com.ishita.tripcoordinatorplatform.ai.document.InvalidDocumentExtractionException exception) {
             throw TourCorrectionException.validation("SOURCE_PROPOSAL_INVALID","The stored proposal cannot be reviewed.");
         }
