@@ -7,15 +7,13 @@ import static com.ishita.tripcoordinatorplatform.ai.document.SemanticTourExtract
 public record SemanticTourExtractionV3(int schemaVersion, Provenance provenance, List<Booking> bookings,
         List<SemanticSupplementalFactV3> supplementalFacts, String supplementalCoverageWarning) {
     public static final int SCHEMA_VERSION = 3;
-    public static final String LEGACY_PROMPT_VERSION = "tour-semantic-3.1";
     public static final String PROMPT_VERSION = "tour-semantic-3.4";
     public static boolean isV34Contract(String identity) {
         return PROMPT_VERSION.equals(identity);
     }
     public static final String STRUCTURED_OUTPUT_NAME = "tour_semantic_v3_4";
-    /** Historical contracts retain their original required fields and validation rules. */
-    public static final java.util.Set<String> READABLE_PROMPT_VERSIONS = java.util.Set.of(
-            LEGACY_PROMPT_VERSION, "tour-semantic-3.2", "tour-semantic-3.3", PROMPT_VERSION);
+    /** The only contract this application reads. */
+    public static final java.util.Set<String> READABLE_PROMPT_VERSIONS = java.util.Set.of(PROMPT_VERSION);
     public SemanticTourExtractionV3 {
         bookings = bookings == null ? null : List.copyOf(bookings);
         supplementalFacts = supplementalFacts == null ? null : List.copyOf(supplementalFacts);
