@@ -24,7 +24,6 @@ import com.ishita.tripcoordinatorplatform.model.TravelDocumentType;
 import com.ishita.tripcoordinatorplatform.repository.TravelDocumentRepository;
 import com.ishita.tripcoordinatorplatform.repository.TravelDocumentExtractionRepository;
 import com.ishita.tripcoordinatorplatform.response.TravelDocumentExtractionResponse;
-import com.ishita.tripcoordinatorplatform.response.TravelDocumentExtractionSummaryResponse;
 import com.ishita.tripcoordinatorplatform.response.TravelDocumentProcessingResponse;
 import com.ishita.tripcoordinatorplatform.response.TravelDocumentSummaryResponse;
 import com.ishita.tripcoordinatorplatform.storage.DocumentStorage;
@@ -254,17 +253,6 @@ public class TravelDocumentProcessingService {
     public List<TravelDocumentSummaryResponse> getDocuments(Long tripId) {
         return travelDocumentRepository.findAllByTrip_IdOrderByUploadedAtDescIdDesc(tripId).stream()
                 .map(TravelDocumentSummaryResponse::from)
-                .toList();
-    }
-
-    public List<TravelDocumentExtractionSummaryResponse> getDocumentExtractions(Long tripId, Long documentId) {
-        travelDocumentRepository.findByIdAndTrip_Id(documentId, tripId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Travel document not found"));
-        return travelDocumentExtractionRepository
-                .findAllByTravelDocument_IdOrderByCreatedAtDescIdDesc(documentId).stream()
-                .map(extraction -> new TravelDocumentExtractionSummaryResponse(
-                        extraction.getId(), extraction.getCreatedAt()))
                 .toList();
     }
 
