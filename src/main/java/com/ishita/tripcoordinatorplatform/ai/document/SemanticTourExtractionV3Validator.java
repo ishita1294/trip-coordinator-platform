@@ -53,7 +53,7 @@ public final class SemanticTourExtractionV3Validator {
             SemanticTemporalConstraintV3.validate(b, this, facts);
             if (b.requiredArrival().status() == Status.CLEAR || b.arrivalLeadMinutes().status() == Status.CLEAR)
                 require(b.temporalConstraints().stream().anyMatch(c -> c.target() == SemanticTemporalConstraintV3.Target.REQUIRED_ARRIVAL),
-                        "Arrival semantics must be explicit in contract 3.2");
+                        "Arrival semantics must be stated explicitly");
             consistency(b);
         }
         SemanticBookingLifecycleV3.validate(extraction,this);
