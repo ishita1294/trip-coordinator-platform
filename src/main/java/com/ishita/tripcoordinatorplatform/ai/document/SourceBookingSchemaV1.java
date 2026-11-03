@@ -99,23 +99,23 @@ public final class SourceBookingSchemaV1 {
         Map<String,Object> string=Map.of("type","string"), integer=Map.of("type","integer"), ids=array(integer);
         var defs=new LinkedHashMap<String,Object>();
         defs.put("localMoment",object("date",nullable(string),"time",nullable(string)));
-        defs.put("offset",object("schedule",string,"edge",enumeration(SourceBookingExtractionV1.Edge.class),"operation",enumeration(SourceBookingExtractionV1.OffsetOperation.class),"minutes",integer,"basis",enumeration(SemanticFactV3.TemporalBasis.class)));
+        defs.put("offset",object("schedule",string,"edge",enumeration(SourceBookingExtraction.Edge.class),"operation",enumeration(SourceBookingExtraction.OffsetOperation.class),"minutes",integer,"basis",enumeration(SemanticFactV3.TemporalBasis.class)));
         defs.put("moment",object("literal",nullable(ref("localMoment")),"offset",nullable(ref("offset"))));
         defs.put("boundary",object("moment",ref("moment"),"inclusive",Map.of("type","boolean")));
         defs.put("scheduleValue",object("relation",enumeration(SemanticTemporalConstraintV3.Relation.class),"point",nullable(ref("moment")),"lower",nullable(ref("boundary")),"upper",nullable(ref("boundary")),"conditionality",enumeration(SemanticAssertionV3.Conditionality.class),"conditionSources",ids));
-        defs.put("scheduleBinding",object("timezone",fact(string),"role",fact(enumeration(SourceBookingExtractionV1.ScheduleRole.class)),"equivalentTo",nullable(string),"relationshipSources",ids));
-        defs.put("schedule",object("id",string,"target",enumeration(SourceBookingExtractionV1.Target.class),"clauseIndex",nullable(integer),"fact",fact(ref("scheduleValue")),"binding",ref("scheduleBinding")));
-        defs.put("projection",object("field",Map.of("type","string","enum",List.of("START","END","REQUIRED_ARRIVAL")),"schedule",string,"edge",enumeration(SourceBookingExtractionV1.Edge.class)));
-        defs.put("difference",object("fromSchedule",string,"fromEdge",enumeration(SourceBookingExtractionV1.Edge.class),"toSchedule",string,"toEdge",enumeration(SourceBookingExtractionV1.Edge.class),"basis",enumeration(SemanticFactV3.TemporalBasis.class)));
+        defs.put("scheduleBinding",object("timezone",fact(string),"role",fact(enumeration(SourceBookingExtraction.ScheduleRole.class)),"equivalentTo",nullable(string),"relationshipSources",ids));
+        defs.put("schedule",object("id",string,"target",enumeration(SourceBookingExtraction.Target.class),"clauseIndex",nullable(integer),"fact",fact(ref("scheduleValue")),"binding",ref("scheduleBinding")));
+        defs.put("projection",object("field",Map.of("type","string","enum",List.of("START","END","REQUIRED_ARRIVAL")),"schedule",string,"edge",enumeration(SourceBookingExtraction.Edge.class)));
+        defs.put("difference",object("fromSchedule",string,"fromEdge",enumeration(SourceBookingExtraction.Edge.class),"toSchedule",string,"toEdge",enumeration(SourceBookingExtraction.Edge.class),"basis",enumeration(SemanticFactV3.TemporalBasis.class)));
         defs.put("number",object("literal",nullable(integer),"difference",nullable(ref("difference"))));
-        defs.put("quantity",object("kind",enumeration(SourceBookingExtractionV1.QuantityKind.class),"clauseIndex",nullable(integer),"fact",fact(ref("number"))));
+        defs.put("quantity",object("kind",enumeration(SourceBookingExtraction.QuantityKind.class),"clauseIndex",nullable(integer),"fact",fact(ref("number"))));
         defs.put("location",object("name",nullable(string),"address",nullable(string),"entrance",nullable(string),"latitude",nullable(Map.of("type","number")),"longitude",nullable(Map.of("type","number")),"instructions",nullable(string)));
         defs.put("ending",object("meaning",enumeration(SemanticTourExtraction.EndingMeaning.class),"location",nullable(ref("location"))));
         defs.put("association",object("bookingIndex",integer,"bookingReference",nullable(string)));
         defs.put("booking",object("index",integer,"name",fact(string),"provider",fact(string),"reference",fact(string),"timezone",fact(string),"meetingPoint",fact(ref("location")),"endingPoint",fact(ref("ending")),"lifecycle",fact(enumeration(SemanticBookingLifecycleV3.State.class)),"replaces",array(fact(ref("association")),0,12),"participants",array(object("category",fact(string),"count",fact(integer)),1,16),"schedules",array(ref("schedule"),3,32),"projections",array(ref("projection"),0,3),"quantities",array(ref("quantity"),2,24)));
-        defs.put("scope",object("kind",enumeration(SourceBookingExtractionV1.ScopeKind.class),"bookings",ids));
-        defs.put("clause",object("index",integer,"kind",enumeration(SourceBookingExtractionV1.ClauseKind.class),"status",Map.of("type","string","enum",Arrays.stream(SemanticFact.Status.values()).filter(v->v!=SemanticFact.Status.MISSING).map(Enum::name).toList()),"conditionality",enumeration(SemanticAssertionV3.Conditionality.class),"sources",ids,"applicability",fact(ref("scope")),"conditionSources",ids,"qualificationSources",ids,"uncertainty",nullable(string)));
-        var result=new LinkedHashMap<>(object("schemaVersion",Map.of("type","integer","enum",List.of(4)),"contract",Map.of("type","string","enum",List.of(SourceBookingExtractionV1.CONTRACT)),"sources",array(object("id",integer,"page",nullable(integer),"quotation",string),0,512),"bookings",array(ref("booking"),1,12),"clauses",array(ref("clause"),0,160),"coverageWarning",nullable(string)));
+        defs.put("scope",object("kind",enumeration(SourceBookingExtraction.ScopeKind.class),"bookings",ids));
+        defs.put("clause",object("index",integer,"kind",enumeration(SourceBookingExtraction.ClauseKind.class),"status",Map.of("type","string","enum",Arrays.stream(SemanticFact.Status.values()).filter(v->v!=SemanticFact.Status.MISSING).map(Enum::name).toList()),"conditionality",enumeration(SemanticAssertionV3.Conditionality.class),"sources",ids,"applicability",fact(ref("scope")),"conditionSources",ids,"qualificationSources",ids,"uncertainty",nullable(string)));
+        var result=new LinkedHashMap<>(object("schemaVersion",Map.of("type","integer","enum",List.of(4)),"contract",Map.of("type","string","enum",List.of(SourceBookingExtraction.CONTRACT)),"sources",array(object("id",integer,"page",nullable(integer),"quotation",string),0,512),"bookings",array(ref("booking"),1,12),"clauses",array(ref("clause"),0,160),"coverageWarning",nullable(string)));
         result.put("$defs",defs);return Collections.unmodifiableMap(result);
     }
 }

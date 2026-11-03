@@ -5,7 +5,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.*;
 import java.util.*;
-import static com.ishita.tripcoordinatorplatform.ai.document.SourceBookingExtractionV1.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.SourceBookingExtraction.*;
 
 /** User-declared overlay only. Never rewrites source claims or invokes a provider. */
 public final class NativeScheduleClarification {
@@ -35,7 +35,7 @@ public final class NativeScheduleClarification {
             throw TourCorrectionException.invalid("Supply one explicit timezone and role for each existing schedule claim.");
         if(!bindings.keySet().equals(new HashSet<>(row.original().schedules().stream().map(ScheduleClaim::id).toList())))
             throw TourCorrectionException.invalid("Clarification must bind the exact existing schedule claims; no source values may be added or removed.");
-        var tree=(ObjectNode)mapper.valueToTree(new SourceBookingExtractionV1(SCHEMA_VERSION,CONTRACT,base.sources(),
+        var tree=(ObjectNode)mapper.valueToTree(new SourceBookingExtraction(SCHEMA_VERSION,CONTRACT,base.sources(),
                 base.bookings().stream().map(SourceBookingReviewV1.BookingReview::original).toList(),
                 base.clauses().stream().map(SourceBookingReviewV1.ClauseView::original).toList(),base.coverageWarning()));
         var booking=(ObjectNode)tree.path("bookings").get(index);

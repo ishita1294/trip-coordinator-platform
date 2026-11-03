@@ -105,7 +105,7 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
 
     @Override
     public String extractSourceBookingV1(DocumentAiInput document) {
-        var response=readDocument(document,SourceBookingSchemaV1.INSTRUCTIONS,SourceBookingSchemaV1.schema(),SourceBookingExtractionV1.OUTPUT_NAME);
+        var response=readDocument(document,SourceBookingSchemaV1.INSTRUCTIONS,SourceBookingSchemaV1.schema(),SourceBookingExtraction.OUTPUT_NAME);
         if(response.error().isPresent()||response.incompleteDetails().isPresent()
                 ||!response.status().filter(com.openai.models.responses.ResponseStatus.COMPLETED::equals).isPresent())
             throw new InvalidDocumentExtractionException("Native extraction response did not complete");
@@ -160,7 +160,7 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
         // assessment and other output schemas retain their existing tier settings.
         boolean requestFast = fastProcessingEnabled
                 && SemanticTourExtractionV3.STRUCTURED_OUTPUT_NAME.equals(schemaName);
-        boolean requestStandard=SourceBookingExtractionV1.OUTPUT_NAME.equals(schemaName);
+        boolean requestStandard=SourceBookingExtraction.OUTPUT_NAME.equals(schemaName);
         if (requestFast) paramsBuilder.serviceTier(ResponseCreateParams.ServiceTier.FAST);
         if (requestStandard) paramsBuilder.serviceTier(ResponseCreateParams.ServiceTier.DEFAULT);
         String requestedTier = requestStandard ? "default" : requestFast ? "fast" : "UNSPECIFIED";

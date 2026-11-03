@@ -3,7 +3,7 @@ package com.ishita.tripcoordinatorplatform.ai.document;
 import java.time.Duration;
 import java.util.*;
 import tools.jackson.databind.json.JsonMapper;
-import static com.ishita.tripcoordinatorplatform.ai.document.SourceBookingExtractionV1.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.SourceBookingExtraction.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.Status.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.SemanticBookingEligibility.Disposition.*;
 
@@ -55,7 +55,7 @@ public final class SourceBookingReviewV1 {
                 facts.coverageWarning(),read.textMatchedSources(),read.unverifiedSources(),false);
     }
     public static Eligibility reassessLifecycle(Review review,int index,Map<Integer,SemanticBookingLifecycleV3.State> declaredStates) {
-        var facts=new SourceBookingExtractionV1(SCHEMA_VERSION,CONTRACT,review.sources(),review.bookings().stream().map(BookingReview::original).toList(),
+        var facts=new SourceBookingExtraction(SCHEMA_VERSION,CONTRACT,review.sources(),review.bookings().stream().map(BookingReview::original).toList(),
                 review.clauses().stream().map(c->c.original()).toList(),review.coverageWarning());
         var b=review.bookings().get(index);
         return assess(facts,b.original(),b.deterministic(),b.clauses(),declaredStates);
@@ -82,7 +82,7 @@ public final class SourceBookingReviewV1 {
         if(required && fact.status()!=CLEAR || !required && (fact.status()==AMBIGUOUS || fact.status()==CONFLICTING))
             block(issues,"SEMANTIC_FACT_UNRESOLVED",field);
     }
-    private static Eligibility assess(SourceBookingExtractionV1 facts,Booking b,
+    private static Eligibility assess(SourceBookingExtraction facts,Booking b,
             SourceBookingReaderV1.BookingView deterministic,List<ClauseLink> links,Map<Integer,SemanticBookingLifecycleV3.State> declaredStates) {
         var issues=new ArrayList<Issue>();
         var state=declaredStates.getOrDefault(b.index(),b.lifecycle().status()==CLEAR?b.lifecycle().value():SemanticBookingLifecycleV3.State.UNKNOWN);

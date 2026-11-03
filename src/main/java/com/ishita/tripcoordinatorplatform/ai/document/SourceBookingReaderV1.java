@@ -6,7 +6,7 @@ import java.util.function.Consumer;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.MapperFeature;
 import tools.jackson.databind.json.JsonMapper;
-import static com.ishita.tripcoordinatorplatform.ai.document.SourceBookingExtractionV1.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.SourceBookingExtraction.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.Status.*;
 
 /** Explicit reader only. Does not select a worker route, emit V3, persist, or authorize confirmation. */
@@ -20,7 +20,7 @@ public final class SourceBookingReaderV1 {
         public BookingView { projections=List.copyOf(projections); quantities=List.copyOf(quantities); equivalentScheduleIds=List.copyOf(equivalentScheduleIds); }
         public BookingView(int index,List<Projected> projections,List<ComputedQuantity> quantities) {this(index,projections,quantities,List.of());}
     }
-    public record Read(SourceBookingExtractionV1 facts, String sourceSha256, List<BookingView> bookings,
+    public record Read(SourceBookingExtraction facts, String sourceSha256, List<BookingView> bookings,
             int textMatchedSources, int unverifiedSources) { public Read { bookings=List.copyOf(bookings); } }
 
     public Read read(String json, JsonMapper mapper, DocumentAiInput original) {
@@ -30,10 +30,10 @@ public final class SourceBookingReaderV1 {
             var strict=mapper.rebuild().disable(MapperFeature.ALLOW_COERCION_OF_SCALARS).build();
             var tree=strict.reader().with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS,
                     DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY).readTree(json);
-            var result=strict.readerFor(SourceBookingExtractionV1.class).with(
+            var result=strict.readerFor(SourceBookingExtraction.class).with(
                     DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES,
                     DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES).without(DeserializationFeature.ACCEPT_FLOAT_AS_INT)
-                    .<SourceBookingExtractionV1>readValue(withUnboundLegacySchedules(tree).toString());
+                    .<SourceBookingExtraction>readValue(withUnboundLegacySchedules(tree).toString());
             return new Validation(result,new DocumentAiInput(original.originalFileName(),original.contentType(),original.content().clone())).read();
         } catch (InvalidDocumentExtractionException invalid) { throw invalid; }
         catch (tools.jackson.core.JacksonException | NullPointerException | IllegalArgumentException | ArithmeticException | DateTimeException invalid) {
@@ -53,12 +53,12 @@ public final class SourceBookingReaderV1 {
     private static void bounded(List<?> list,int max) { require(list!=null && list.size()<=max,"Missing or oversized collection"); }
 
     private static final class Validation {
-        final SourceBookingExtractionV1 extraction;
+        final SourceBookingExtraction extraction;
         final DocumentAiInput original;
         final Map<Integer,Source> sources=new HashMap<>();
         final Set<Integer> used=new HashSet<>();
         final Map<Integer,Clause> clauses=new HashMap<>();
-        Validation(SourceBookingExtractionV1 extraction,DocumentAiInput original){this.extraction=extraction;this.original=original;}
+        Validation(SourceBookingExtraction extraction,DocumentAiInput original){this.extraction=extraction;this.original=original;}
         void refs(List<Integer> refs,boolean required) {
             bounded(refs,32); require(!required || !refs.isEmpty(),"Established claim requires source evidence");
             require(new HashSet<>(refs).size()==refs.size(),"Duplicate source reference");

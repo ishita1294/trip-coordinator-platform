@@ -13,7 +13,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.time.*;
 import java.util.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.Status.*;
-import static com.ishita.tripcoordinatorplatform.ai.document.SourceBookingExtractionV1.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.SourceBookingExtraction.*;
 
 /** Inactive native effective read; no route, AI call or reservation creation. */
 @Service
@@ -154,7 +154,7 @@ public class SourceBookingAcceptedReviewService {
     /** Transient effective native view only. Original claims/history are never rewritten or returned as corrected source. */
     private SourceBookingReviewV1.Review temporalReview(SourceBookingReviewV1.Review base,
             SourceBookingReviewV1.BookingReview row,Map<String,JsonNode> values,Set<String> corrected,DocumentAiInput original) {
-        var tree=(tools.jackson.databind.node.ObjectNode)mapper.valueToTree(new SourceBookingExtractionV1(
+        var tree=(tools.jackson.databind.node.ObjectNode)mapper.valueToTree(new SourceBookingExtraction(
                 SCHEMA_VERSION,CONTRACT,base.sources(),base.bookings().stream().map(SourceBookingReviewV1.BookingReview::original).toList(),
                 base.clauses().stream().map(SourceBookingReviewV1.ClauseView::original).toList(),base.coverageWarning()));
         var booking=(tools.jackson.databind.node.ObjectNode)tree.path("bookings").get(row.original().index());

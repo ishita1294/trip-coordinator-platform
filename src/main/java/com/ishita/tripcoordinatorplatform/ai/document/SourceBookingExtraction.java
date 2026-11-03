@@ -4,12 +4,12 @@ import java.util.List;
 import static com.ishita.tripcoordinatorplatform.ai.document.SemanticTourExtraction.*;
 
 /** Distinct, inactive successor: source facts and clauses, not compressed V3 interpretation objects. */
-public record SourceBookingExtractionV1(int schemaVersion, String contract, List<Source> sources,
+public record SourceBookingExtraction(int schemaVersion, String contract, List<Source> sources,
         List<Booking> bookings, List<Clause> clauses, String coverageWarning) {
     public static final int SCHEMA_VERSION = 4;
     public static final String CONTRACT = "tour-source-facts-1";
     public static final String OUTPUT_NAME = "tour_source_facts_1";
-    public SourceBookingExtractionV1 { sources=copy(sources); bookings=copy(bookings); clauses=copy(clauses); }
+    public SourceBookingExtraction { sources=copy(sources); bookings=copy(bookings); clauses=copy(clauses); }
     static <T> List<T> copy(List<T> values) { return values == null ? null : List.copyOf(values); }
     public record Source(int id, Integer page, String quotation) {}
     /** Normalized values and uncertainty are model decisions. No derivation prose or explanation sidecar. */
