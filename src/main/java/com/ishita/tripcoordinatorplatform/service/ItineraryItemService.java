@@ -276,8 +276,7 @@ public class ItineraryItemService {
 
         validateWithinTripDates(trip, updatedItem.getStartDateTime(), updatedItem.getEndDateTime());
 
-        List<ItineraryItem> existingItems =
-                itineraryItemRepository
+        itineraryItemRepository
                         .findByItinerary_Trip_IdOrderByStartDateTime(tripId);
 
 

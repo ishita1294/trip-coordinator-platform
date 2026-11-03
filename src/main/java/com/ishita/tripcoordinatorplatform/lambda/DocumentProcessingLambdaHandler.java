@@ -68,7 +68,7 @@ public class DocumentProcessingLambdaHandler implements RequestHandler<SQSEvent,
 
     @Override
     public Void handleRequest(SQSEvent event, Context context) {
-        try (var budget = DocumentProcessingBudget.forInvocation(
+        try (var _ = DocumentProcessingBudget.forInvocation(
                 context == null ? null : context::getRemainingTimeInMillis)) {
             if (claims == null && visibility == null) visibility = DocumentProcessingVisibility.fromEnvironment();
             if (visibility != null) {
