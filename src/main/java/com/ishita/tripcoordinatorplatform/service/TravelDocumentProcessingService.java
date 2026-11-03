@@ -276,38 +276,6 @@ public class TravelDocumentProcessingService {
         return extractionResponse(document, extraction,semanticWorkflowEnabled,v3WorkflowEnabled);
     }
 
-    public TravelDocumentExtractionResponse getDocumentExtraction(
-            Long tripId,
-            Long documentId,
-            Long extractionId
-    ) {
-        TravelDocument document = travelDocumentRepository
-                .findByIdAndTrip_Id(documentId, tripId)
-                .orElseThrow(() ->
-                        new ResponseStatusException(
-                                HttpStatus.NOT_FOUND,
-                                "Travel document not found"
-                        )
-                );
-
-        TravelDocumentExtraction extraction = travelDocumentExtractionRepository
-                .findByIdAndTravelDocument_Id(extractionId, documentId)
-                .orElseThrow(() ->
-                        new ResponseStatusException(
-                                HttpStatus.NOT_FOUND,
-                                "Travel document extraction not found"
-                        )
-                );
-
-        return extractionResponse(document, extraction);
-    }
-
-    private TravelDocumentExtractionResponse extractionResponse(
-            TravelDocument document, TravelDocumentExtraction extraction
-    ) {
-        return extractionResponse(document,extraction,false,false);
-    }
-
     private TravelDocumentExtractionResponse extractionResponse(TravelDocument document,TravelDocumentExtraction extraction,boolean semanticWorkflowEnabled,boolean v3WorkflowEnabled) {
         JsonNode extractedData;
         try {

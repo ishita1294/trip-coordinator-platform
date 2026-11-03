@@ -12,10 +12,4 @@ public interface TravelDocumentExtractionRepository extends JpaRepository<Travel
 
     Optional<TravelDocumentExtraction> findFirstByTravelDocument_IdOrderByCreatedAtDescIdDesc(Long documentId);
 
-    Optional<TravelDocumentExtraction>
-    findByIdAndTravelDocument_Id(
-            Long extractionId,
-            Long documentId
-    );
-
 }
