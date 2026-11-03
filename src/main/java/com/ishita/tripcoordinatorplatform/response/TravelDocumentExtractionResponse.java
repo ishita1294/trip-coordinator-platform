@@ -11,7 +11,7 @@ public record TravelDocumentExtractionResponse(Long extractionId,
                                                Instant createdAt,
                                                JsonNode extractedData, java.util.List<com.ishita.tripcoordinatorplatform.intelligence.commitment.ConfirmedArrivalEvidence.Review> arrivalReview,boolean endingLocationReviewSupported,
                                                SemanticTourReview semanticReview,
-                                               @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) com.ishita.tripcoordinatorplatform.ai.document.SourceBookingReviewV1.Review sourceBookingReview,
+                                               @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) com.ishita.tripcoordinatorplatform.ai.document.SourceBookingReview.Review sourceBookingReview,
                                                @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) com.ishita.tripcoordinatorplatform.ai.document.SourceBookingStoredV1.Provenance sourceBookingProvenance) {
     public TravelDocumentExtractionResponse {
         if(com.ishita.tripcoordinatorplatform.ai.document.SourceBookingStoredV1.isNativeVersion(extractedData)) {

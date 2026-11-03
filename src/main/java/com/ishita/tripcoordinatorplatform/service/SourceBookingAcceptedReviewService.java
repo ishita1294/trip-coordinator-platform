@@ -31,12 +31,12 @@ public class SourceBookingAcceptedReviewService {
             TourSourceAssessment.Outcome authority) {}
     public record BookingOverlay(int index,Map<String,JsonNode> currentValues,Set<String> correctedFields,
             Set<String> invalidatedFields,LifecycleClarification acceptedLifecycle,
-            SourceBookingReviewV1.Eligibility eligibility) {
+            SourceBookingReview.Eligibility eligibility) {
         public BookingOverlay { currentValues=Map.copyOf(currentValues);correctedFields=Set.copyOf(correctedFields);invalidatedFields=Set.copyOf(invalidatedFields); }
     }
     public record Review(Long documentId,Long extractionId,String extractionSha256,String acceptedStateToken,
-            SourceBookingReviewV1.Review original,List<BookingOverlay> bookings,List<Acceptance> history,
-            List<Integer> eligibleBookingIndexes,boolean confirmationSupported,SourceBookingReviewV1.Review effectiveReview) {
+            SourceBookingReview.Review original,List<BookingOverlay> bookings,List<Acceptance> history,
+            List<Integer> eligibleBookingIndexes,boolean confirmationSupported,SourceBookingReview.Review effectiveReview) {
         public Review { bookings=List.copyOf(bookings);history=List.copyOf(history);eligibleBookingIndexes=List.copyOf(eligibleBookingIndexes); }
     }
     /** original is supplied by the trusted storage caller; no endpoint accepts caller-provided extraction JSON. */
@@ -55,7 +55,7 @@ public class SourceBookingAcceptedReviewService {
     private Review compose(TravelDocument doc,TravelDocumentExtraction extraction,DocumentAiInput original,List<Change> pending,Instant cutoff) {
         var tree=mapper.readTree(extraction.getExtractedData());
         var base=SourceBookingStoredV1.isStored(tree)?SourceBookingStoredV1.read(extraction.getExtractedData(),mapper,original).review(mapper,original)
-                :SourceBookingReviewV1.read(extraction.getExtractedData(),mapper,original);
+                :SourceBookingReview.read(extraction.getExtractedData(),mapper,original);
         var accepted=bookingState.accepted(doc,extraction).stream().filter(r->cutoff==null || !r.acceptedAt.isAfter(cutoff)).toList(); // Existing acceptedAt/id ordering.
         var merged=new LinkedHashMap<String,Change>();var history=new ArrayList<Acceptance>();var seen=new HashSet<Long>();
         String hash=TourCorrectionService.hash(extraction.getExtractedData());
@@ -104,7 +104,7 @@ public class SourceBookingAcceptedReviewService {
             if(states.containsKey(link.value().bookingIndex()) && state!=SemanticBookingLifecycleV3.State.CANCELLED && state!=SemanticBookingLifecycleV3.State.SUPERSEDED)
                 throw TourCorrectionException.validation("INVALID_LIFECYCLE_CLARIFICATION","Established replacement requires an inactive predecessor.");
         }
-        var rows=new ArrayList<BookingOverlay>();var effectiveRows=new ArrayList<SourceBookingReviewV1.BookingReview>();var eligible=new ArrayList<Integer>();
+        var rows=new ArrayList<BookingOverlay>();var effectiveRows=new ArrayList<SourceBookingReview.BookingReview>();var eligible=new ArrayList<Integer>();
         for(var row:base.bookings()) {
             int index=row.original().index();var values=values(row);var corrected=new HashSet<String>();
             for(var c:merged.values())if(c.bookingIndex()==index){values.put(c.field(),c.proposedValue().deepCopy());corrected.add(c.field());}
@@ -115,7 +115,7 @@ public class SourceBookingAcceptedReviewService {
                 try { effective=temporalReview(effective,effective.bookings().get(index),values,corrected,original); }
                 catch(TourCorrectionException unsupported) { temporalBlocked=true; }
             }
-            var assessed=SourceBookingReviewV1.reassessLifecycle(effective,index,states);
+            var assessed=SourceBookingReview.reassessLifecycle(effective,index,states);
             var issues=new ArrayList<>(assessed.issues());
             for(String field:corrected)if(!TEMPORAL.contains(field) && !field.equals("lifecycle") && !field.equals(NativeScheduleClarification.FIELD)) {
                 issues.removeIf(i->field.equals(i.field()));
@@ -131,16 +131,16 @@ public class SourceBookingAcceptedReviewService {
                 for(String field:TEMPORAL)if(!corrected.contains(field))values.put(field,recomputed.get(field));
             }
             endpoint(values,corrected,issues);
-            var eligibility=new SourceBookingReviewV1.Eligibility(assessed.lifecycleDisposition(),assessed.lifecycle(),
-                    assessed.lifecycleDisposition()==SemanticBookingEligibility.Disposition.ACTIVE_ELIGIBLE && issues.stream().noneMatch(SourceBookingReviewV1.Issue::blocking),issues);
+            var eligibility=new SourceBookingReview.Eligibility(assessed.lifecycleDisposition(),assessed.lifecycle(),
+                    assessed.lifecycleDisposition()==SemanticBookingEligibility.Disposition.ACTIVE_ELIGIBLE && issues.stream().noneMatch(SourceBookingReview.Issue::blocking),issues);
             effectiveRows.add(effective.bookings().get(index));
             rows.add(new BookingOverlay(index,values,corrected,invalidated,declarations.get(index),eligibility));
             if(eligibility.reviewReady())eligible.add(index);
         }
-        var effectiveReview=new SourceBookingReviewV1.Review(base.schemaVersion(),base.contract(),base.sourceSha256(),base.sources(),base.clauses(),effectiveRows,eligible,base.coverageWarning(),base.textMatchedSources(),base.unverifiedSources(),false);
+        var effectiveReview=new SourceBookingReview.Review(base.schemaVersion(),base.contract(),base.sourceSha256(),base.sources(),base.clauses(),effectiveRows,eligible,base.coverageWarning(),base.textMatchedSources(),base.unverifiedSources(),false);
         return new Review(doc.getId(),extraction.getId(),hash,bookingState.token(accepted),base,rows,history,eligible,false,effectiveReview);
     }
-    private void checkChange(SourceBookingReviewV1.Review base,Change c) {
+    private void checkChange(SourceBookingReview.Review base,Change c) {
         if(c==null || c.bookingIndex()==null || c.bookingIndex()<0 || c.bookingIndex()>=base.bookings().size()
                 || c.field()==null || !TourConfirmationPolicy.FIELDS.contains(c.field()) && !NativeScheduleClarification.FIELD.equals(c.field()) || c.originalValue()==null || c.proposedValue()==null)
             throw TourCorrectionException.invalid("Invalid native correction field.");
@@ -152,11 +152,11 @@ public class SourceBookingAcceptedReviewService {
         validateValue(c.field(),c.proposedValue());
     }
     /** Transient effective native view only. Original claims/history are never rewritten or returned as corrected source. */
-    private SourceBookingReviewV1.Review temporalReview(SourceBookingReviewV1.Review base,
-            SourceBookingReviewV1.BookingReview row,Map<String,JsonNode> values,Set<String> corrected,DocumentAiInput original) {
+    private SourceBookingReview.Review temporalReview(SourceBookingReview.Review base,
+            SourceBookingReview.BookingReview row,Map<String,JsonNode> values,Set<String> corrected,DocumentAiInput original) {
         var tree=(tools.jackson.databind.node.ObjectNode)mapper.valueToTree(new SourceBookingExtraction(
-                SCHEMA_VERSION,CONTRACT,base.sources(),base.bookings().stream().map(SourceBookingReviewV1.BookingReview::original).toList(),
-                base.clauses().stream().map(SourceBookingReviewV1.ClauseView::original).toList(),base.coverageWarning()));
+                SCHEMA_VERSION,CONTRACT,base.sources(),base.bookings().stream().map(SourceBookingReview.BookingReview::original).toList(),
+                base.clauses().stream().map(SourceBookingReview.ClauseView::original).toList(),base.coverageWarning()));
         var booking=(tools.jackson.databind.node.ObjectNode)tree.path("bookings").get(row.original().index());
         for(String field:corrected)if(TEMPORAL.contains(field)) {
             var proposed=values.get(field);
@@ -189,13 +189,13 @@ public class SourceBookingAcceptedReviewService {
                 }
             }
         }
-        try{return SourceBookingReviewV1.read(tree.toString(),mapper,original);}
+        try{return SourceBookingReview.read(tree.toString(),mapper,original);}
         catch(InvalidDocumentExtractionException invalid){throw unsupportedTemporal();}
     }
     private static TourCorrectionException unsupportedTemporal(){return TourCorrectionException.validation(
             "TEMPORAL_CORRECTION_REQUIRES_NATIVE_CONSTRAINT_REVIEW","Correction cannot preserve the native schedule relation, evidence or arithmetic.");}
     private static final Set<String> TEMPORAL=Set.of("startDate","startTime","endDate","endTime","timezone","durationMinutes","arrivalLeadMinutes","requiredArrivalLocal");
-    private Map<String,JsonNode> values(SourceBookingReviewV1.BookingReview row) {
+    private Map<String,JsonNode> values(SourceBookingReview.BookingReview row) {
         var b=row.original();var out=new LinkedHashMap<String,JsonNode>();
         out.put("name",node(b.name()));out.put("provider",node(b.provider()));out.put("bookingReference",node(b.reference()));out.put("timezone",node(b.timezone()));
         out.put(NativeScheduleClarification.FIELD,mapper.createObjectNode());
@@ -277,8 +277,8 @@ public class SourceBookingAcceptedReviewService {
             }
         }catch(RuntimeException invalid){throw TourCorrectionException.validation("INVALID_CORRECTION_VALUE","Invalid accepted correction value.");}
     }
-    private static void block(List<SourceBookingReviewV1.Issue> issues,String code,String field){issues.add(new SourceBookingReviewV1.Issue(code,field,true));}
-    private void endpoint(Map<String,JsonNode> values,Set<String> corrected,List<SourceBookingReviewV1.Issue> issues) {
+    private static void block(List<SourceBookingReview.Issue> issues,String code,String field){issues.add(new SourceBookingReview.Issue(code,field,true));}
+    private void endpoint(Map<String,JsonNode> values,Set<String> corrected,List<SourceBookingReview.Issue> issues) {
         if(Collections.disjoint(corrected,Set.of("meetingPoint","endingPoint","endingLocationChoice")))return;
         issues.removeIf(i->i.field().equals("endingPoint") && (i.code().equals("INVALID_BOOKING_LOCATION") || i.code().equals("CONFLICTING_ENDPOINT_DECISIONS")));
         String choice=values.get("endingLocationChoice").asText();

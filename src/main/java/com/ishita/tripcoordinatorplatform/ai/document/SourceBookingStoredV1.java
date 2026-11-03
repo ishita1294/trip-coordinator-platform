@@ -34,6 +34,6 @@ public record SourceBookingStoredV1(int schemaVersion,String contract,String mod
             return value;
         }catch(tools.jackson.core.JacksonException|IllegalArgumentException malformed){throw invalid();}
     }
-    public SourceBookingReviewV1.Review review(JsonMapper mapper,DocumentAiInput original){return SourceBookingReviewV1.read(mapper.writeValueAsString(facts),mapper,original);}
+    public SourceBookingReview.Review review(JsonMapper mapper,DocumentAiInput original){return SourceBookingReview.read(mapper.writeValueAsString(facts),mapper,original);}
     private static InvalidDocumentExtractionException invalid(){return new InvalidDocumentExtractionException("Invalid source-bound native review envelope");}
 }

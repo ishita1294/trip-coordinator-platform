@@ -8,8 +8,8 @@ import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.Status
 import static com.ishita.tripcoordinatorplatform.ai.document.SemanticBookingEligibility.Disposition.*;
 
 /** Inactive read-only consumer. Readiness is not authorization or permission to persist/confirm. */
-public final class SourceBookingReviewV1 {
-    private SourceBookingReviewV1() {}
+public final class SourceBookingReview {
+    private SourceBookingReview() {}
     public enum Association { APPLIES, POSSIBLE, DOCUMENT_CONTEXT }
     public record Issue(String code, String field, boolean blocking) {}
     public record ClauseView(Clause original, List<Source> passages, List<Source> conditions, List<Source> qualifications) {

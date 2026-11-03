@@ -25,7 +25,7 @@ public final class NativeScheduleClarification {
             return p;
         }catch(RuntimeException invalid){throw TourCorrectionException.invalid("Explicit schedule bindings, source acknowledgement and reason are required.");}
     }
-    static SourceBookingReviewV1.Review apply(SourceBookingReviewV1.Review base,int index,JsonNode value,
+    static SourceBookingReview.Review apply(SourceBookingReview.Review base,int index,JsonNode value,
             JsonMapper mapper,DocumentAiInput source) {
         var p=parse(value,mapper);var row=base.bookings().get(index);var bindings=new HashMap<String,ScheduleBinding>();
         for(var claim:p.claims())if(claim==null || claim.scheduleId()==null || claim.binding()==null
@@ -36,8 +36,8 @@ public final class NativeScheduleClarification {
         if(!bindings.keySet().equals(new HashSet<>(row.original().schedules().stream().map(ScheduleClaim::id).toList())))
             throw TourCorrectionException.invalid("Clarification must bind the exact existing schedule claims; no source values may be added or removed.");
         var tree=(ObjectNode)mapper.valueToTree(new SourceBookingExtraction(SCHEMA_VERSION,CONTRACT,base.sources(),
-                base.bookings().stream().map(SourceBookingReviewV1.BookingReview::original).toList(),
-                base.clauses().stream().map(SourceBookingReviewV1.ClauseView::original).toList(),base.coverageWarning()));
+                base.bookings().stream().map(SourceBookingReview.BookingReview::original).toList(),
+                base.clauses().stream().map(SourceBookingReview.ClauseView::original).toList(),base.coverageWarning()));
         var booking=(ObjectNode)tree.path("bookings").get(index);
         for(var claim:booking.path("schedules"))((ObjectNode)claim).set("binding",mapper.valueToTree(bindings.get(claim.path("id").asText())));
         var projections=(ArrayNode)booking.path("projections");
@@ -53,7 +53,7 @@ public final class NativeScheduleClarification {
             } else if(!fact.path("status").asText().equals("CLEAR"))throw TourCorrectionException.invalid("An unresolved source duration cannot be replaced by a derived value.");
         }
         try {
-            var effective=SourceBookingReviewV1.read(tree.toString(),mapper,source);var resolved=effective.bookings().get(index).deterministic();
+            var effective=SourceBookingReview.read(tree.toString(),mapper,source);var resolved=effective.bookings().get(index).deterministic();
             if(resolved.projections().stream().filter(x->x.field()==Target.START || x.field()==Target.END)
                     .filter(x->x.temporalResolution()==SourceBookingReader.TemporalResolution.UNIQUE_INSTANT).count()!=2)
                 throw new IllegalArgumentException();
