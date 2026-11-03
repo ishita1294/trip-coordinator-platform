@@ -2,7 +2,6 @@ package com.ishita.tripcoordinatorplatform.service;
 
 import com.ishita.tripcoordinatorplatform.ai.document.DocumentProcessingBudget;
 
-import com.ishita.tripcoordinatorplatform.model.TravelDocumentProcessingStatus;
 import com.ishita.tripcoordinatorplatform.repository.TravelDocumentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

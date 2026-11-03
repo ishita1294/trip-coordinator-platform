@@ -13,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
-import com.ishita.tripcoordinatorplatform.ai.document.SemanticTourExtraction;
 import com.ishita.tripcoordinatorplatform.ai.document.TourExtractionCodec;
 
 @Service

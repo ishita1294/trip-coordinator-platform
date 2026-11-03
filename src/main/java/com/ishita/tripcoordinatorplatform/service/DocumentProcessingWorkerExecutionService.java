@@ -2,7 +2,6 @@ package com.ishita.tripcoordinatorplatform.service;
 
 import com.ishita.tripcoordinatorplatform.ai.document.DocumentProcessingBudget;
 
-import com.ishita.tripcoordinatorplatform.model.TravelDocumentProcessingStatus;
 import com.openai.errors.OpenAIException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
