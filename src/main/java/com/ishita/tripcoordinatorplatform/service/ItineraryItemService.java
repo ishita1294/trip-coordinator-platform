@@ -276,10 +276,6 @@ public class ItineraryItemService {
 
         validateWithinTripDates(trip, updatedItem.getStartDateTime(), updatedItem.getEndDateTime());
 
-        itineraryItemRepository
-                        .findByItinerary_Trip_IdOrderByStartDateTime(tripId);
-
-
         if (activityId != null) {
 
             Activity activity = activityRepository.findById(activityId)
