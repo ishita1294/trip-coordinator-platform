@@ -206,6 +206,8 @@ public class DocumentProcessingLambdaHandler implements RequestHandler<SQSEvent,
                         Map.entry("app.document-storage.provider", "s3"),
                         Map.entry("spring.jpa.hibernate.ddl-auto", "validate"),
                         Map.entry("spring.sql.init.mode", "never"),
+                        // Only the API changes the schema; the worker must start fast and never migrate.
+                        Map.entry("spring.flyway.enabled", "false"),
                         Map.entry("spring.jpa.show-sql", "false"),
                         Map.entry("spring.datasource.hikari.connection-timeout", "5000")))));
         application.addInitializers(context -> {
