@@ -16,7 +16,7 @@ public interface DocumentProcessingOutboxRepository extends JpaRepository<Docume
     @org.springframework.data.jpa.repository.Query("""
             UPDATE DocumentProcessingOutbox job SET job.extractionContract = :contract
             WHERE job.documentId = :documentId AND job.processingJobId = :jobId
-              AND job.extractionContract IN ('AUTO_V3_4', 'AUTO_V3_4_COMPACT')
+              AND job.extractionContract = 'AUTO_V3_4'
               AND EXISTS (SELECT document.id FROM TravelDocument document
                   WHERE document.id = :documentId AND document.processingJobId = :jobId
                     AND document.processingStatus = PROCESSING AND document.processingAttemptId = :attemptId)

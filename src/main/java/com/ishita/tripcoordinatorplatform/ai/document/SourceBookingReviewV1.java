@@ -54,20 +54,6 @@ public final class SourceBookingReviewV1 {
         return new Review(SCHEMA_VERSION,CONTRACT,read.sourceSha256(),facts.sources(),clauses,bookings,eligible,
                 facts.coverageWarning(),read.textMatchedSources(),read.unverifiedSources(),false);
     }
-    /** Assesses only explicit indexes; another booking's issues cannot veto a valid partial selection. */
-    public static Selection assessSelection(Review review, Set<Integer> selected) {
-        if(selected==null || selected.isEmpty())return new Selection(false,List.of(),List.of(new Issue("BOOKING_SELECTION_REQUIRED","selection",true)));
-        var indexes=new ArrayList<Integer>();var issues=new ArrayList<Issue>();
-        for(var index:selected) {
-            if(index==null || index<0 || index>=review.bookings().size()) {
-                issues.add(new Issue("BOOKING_NOT_ELIGIBLE","selection",true));continue;
-            }
-            indexes.add(index);var eligibility=review.bookings().get(index).eligibility();
-            issues.addAll(eligibility.issues().stream().filter(Issue::blocking)
-                    .map(i->new Issue(i.code(),"bookings["+index+"]."+i.field(),true)).toList());
-        }
-        Collections.sort(indexes);return new Selection(issues.isEmpty(),indexes,issues);
-    }
     public static Eligibility reassessLifecycle(Review review,int index,Map<Integer,SemanticBookingLifecycleV3.State> declaredStates) {
         var facts=new SourceBookingExtractionV1(SCHEMA_VERSION,CONTRACT,review.sources(),review.bookings().stream().map(BookingReview::original).toList(),
                 review.clauses().stream().map(c->c.original()).toList(),review.coverageWarning());

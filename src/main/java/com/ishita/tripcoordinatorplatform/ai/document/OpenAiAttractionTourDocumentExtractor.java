@@ -25,9 +25,6 @@ import java.util.stream.Collectors;
 @Component
 public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocumentExtractor {
 
-    static final String COMPACT_JSON_INSTRUCTION = "Return compact JSON without whitespace outside strings. "
-            + "Do not omit or shorten any fields, values, evidence or uncertainty to achieve compactness.";
-
     static final String INSTRUCTIONS = """
             Extract attraction tickets and tour bookings from the attached document using the JSON schema.
             Return a bookings array, one entry per documented reservation or scheduled activity.
@@ -63,7 +60,6 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
     private final OpenAIClient client;
     private final String model;
     private final JsonMapper jsonMapper;
-    private final boolean lowReasoningCandidate;
     private final boolean fastProcessingEnabled;
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -71,7 +67,6 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
             @Value("${app.ai.openai.extraction-model}") String model,
             JsonMapper jsonMapper,
             @Value("${app.ai.openai.api-key:}") String apiKey,
-            @Value("${app.ai.openai.tour-v34-low-reasoning-candidate:false}") boolean lowReasoningCandidate,
             @Value("${app.ai.openai.tour-extraction-fast-enabled:${TOUR_EXTRACTION_FAST_ENABLED:false}}") boolean fastProcessingEnabled
     ) {
         if (model == null || model.isBlank()) {
@@ -79,17 +74,11 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
         }
         this.model = model;
         this.jsonMapper = jsonMapper;
-        requireSupportedCandidate(model, lowReasoningCandidate);
-        this.lowReasoningCandidate = lowReasoningCandidate;
         this.fastProcessingEnabled = fastProcessingEnabled;
         var builder = OpenAIOkHttpClient.builder().fromEnv().maxRetries(0)
                 .timeout(DocumentProcessingBudget.clientTimeout(DocumentProcessingBudget.Stage.EXTRACTION));
         if (apiKey != null && !apiKey.isBlank()) builder.apiKey(apiKey);
         this.client = builder.build();
-    }
-
-    public OpenAiAttractionTourDocumentExtractor(String model, JsonMapper mapper, String apiKey, boolean lowReasoningCandidate) {
-        this(model, mapper, apiKey, lowReasoningCandidate, false);
     }
 
     public OpenAiAttractionTourDocumentExtractor(String model, JsonMapper mapper, String apiKey) {
@@ -100,21 +89,9 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
         this(client, model, mapper, false);
     }
 
-    OpenAiAttractionTourDocumentExtractor(OpenAIClient client, String model, JsonMapper mapper, boolean lowReasoningCandidate) {
-        this(client, model, mapper, lowReasoningCandidate, false);
-    }
-
-    OpenAiAttractionTourDocumentExtractor(OpenAIClient client, String model, JsonMapper mapper,
-            boolean lowReasoningCandidate, boolean fastProcessingEnabled) {
-        requireSupportedCandidate(model, lowReasoningCandidate);
+    OpenAiAttractionTourDocumentExtractor(OpenAIClient client, String model, JsonMapper mapper, boolean fastProcessingEnabled) {
         this.client = client; this.model = model; this.jsonMapper = mapper;
-        this.lowReasoningCandidate = lowReasoningCandidate;
         this.fastProcessingEnabled = fastProcessingEnabled;
-    }
-
-    private static void requireSupportedCandidate(String model, boolean enabled) {
-        if (enabled && !"gpt-6-sol".equals(model))
-            throw new IllegalArgumentException("The V3.4 low-reasoning candidate requires gpt-6-sol");
     }
 
     @Override
@@ -217,94 +194,29 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
         return response;
     }
 
-    /** Explicit opt-in only. No worker/controller switches to this format in Slice 1. */
-    @Override
-    public SemanticTourExtraction extractSemantic(DocumentAiInput document) {
-        if (document == null || document.content() == null || document.content().length == 0)
-            throw new IllegalArgumentException("Document content is required for semantic extraction");
-        // Bind provenance to the same snapshot that is sent, even if a caller later mutates its byte array.
-        var source = new DocumentAiInput(document.originalFileName(), document.contentType(), document.content().clone());
-        String digest;
-        try {
-            digest = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(source.content()));
-        } catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
-        var response = readDocument(source, SemanticTourSchema.INSTRUCTIONS, SemanticTourSchema.schema(), "tour_semantic_v2");
-        if (response.error().isPresent() || response.incompleteDetails().isPresent()
-                || !response.status().filter(com.openai.models.responses.ResponseStatus.COMPLETED::equals).isPresent())
-            throw new InvalidDocumentExtractionException("Semantic extraction response was not completed");
-        String text = response.output().stream().flatMap(i -> i.message().stream()).flatMap(m -> m.content().stream())
-                .flatMap(c -> c.outputText().stream()).map(t -> t.text()).collect(Collectors.joining());
-        SemanticTourExtraction.ModelOutput parsed;
-        try {
-            var tree = jsonMapper.reader().with(tools.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS,
-                    tools.jackson.databind.DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY).readTree(text);
-            parsed = jsonMapper.rebuild().disable(tools.jackson.databind.MapperFeature.ALLOW_COERCION_OF_SCALARS)
-                    .build().readerFor(SemanticTourExtraction.ModelOutput.class)
-                    .with(tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
-                            tools.jackson.databind.DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES,
-                            tools.jackson.databind.DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
-                    .without(tools.jackson.databind.DeserializationFeature.ACCEPT_FLOAT_AS_INT)
-                    .readValue(tree.toString());
-        } catch (JacksonException | NullPointerException malformed) {
-            throw new InvalidDocumentExtractionException(InvalidDocumentExtractionException.Code.MALFORMED_JSON,
-                    "Invalid semantic extraction response");
-        }
-        if (parsed == null) throw new InvalidDocumentExtractionException("Semantic extraction is required");
-        var result = new SemanticTourExtraction(parsed.schemaVersion(),
-                new SemanticTourExtraction.Provenance(digest, model, SemanticTourExtraction.PROMPT_VERSION,
-                        response.id(), java.time.Instant.now()), parsed.bookings());
-        new SemanticTourExtractionValidator().validate(result, digest);
-        return result;
-    }
-
     /** Uses the V3.4 contract selected by the processing job. */
     @Override
     public SemanticTourExtractionV3 extractSemanticV3(DocumentAiInput document) {
-        return extractSemanticV3(document, false);
-    }
-
-    /** Direct comparison only. No Spring setting or worker route enables this experimental instruction. */
-    SemanticTourExtractionV3 extractCompactSemanticV3Candidate(DocumentAiInput document) {
-        if (!"gpt-6-sol".equals(model) || lowReasoningCandidate)
-            throw new IllegalArgumentException("Compact V3.4 comparison requires gpt-6-sol with medium reasoning");
-        return extractSemanticV3(document, true);
-    }
-
-    @Override
-    public SemanticTourExtractionV3 extractCompactSemanticV3(DocumentAiInput document) {
-        if (lowReasoningCandidate) throw new IllegalArgumentException("Compact contract cannot combine reasoning experiments");
-        return extractSemanticV3(document, false, true);
-    }
-
-    private SemanticTourExtractionV3 extractSemanticV3(DocumentAiInput document, boolean compactCandidate) {
-        return extractSemanticV3(document, compactCandidate, false);
-    }
-
-    private SemanticTourExtractionV3 extractSemanticV3(DocumentAiInput document, boolean compactCandidate, boolean compactWire) {
         if (document == null || document.content() == null || document.content().length == 0)
             throw new IllegalArgumentException("Document content is required for semantic extraction");
         var source = new DocumentAiInput(document.originalFileName(), document.contentType(), document.content().clone());
         String digest = TourExtractionCodec.sourceSha256(source.content());
         // Read any available text without requiring a text layer for supported scan/image inputs.
         var sourceEvidence = SemanticTourSourceEvidence.read(source);
-        String instructions = compactWire ? CompactSemanticTourV3.INSTRUCTIONS : SemanticTourSchemaV3.INSTRUCTIONS
-                + (compactCandidate ? "\n" + COMPACT_JSON_INSTRUCTION : "");
-        ReasoningEffort effort = compactCandidate ? ReasoningEffort.MEDIUM
-                : lowReasoningCandidate ? ReasoningEffort.LOW : null;
-        var response = readDocument(source, instructions, compactWire ? CompactSemanticTourV3.schema() : SemanticTourSchemaV3.schema(),
-                compactWire ? CompactSemanticTourV3.OUTPUT_NAME : SemanticTourExtractionV3.STRUCTURED_OUTPUT_NAME, effort);
+        var response = readDocument(source, SemanticTourSchemaV3.INSTRUCTIONS, SemanticTourSchemaV3.schema(),
+                SemanticTourExtractionV3.STRUCTURED_OUTPUT_NAME, null);
         if (response.error().isPresent() || response.incompleteDetails().isPresent()
                 || !response.status().filter(com.openai.models.responses.ResponseStatus.COMPLETED::equals).isPresent())
             throw new InvalidDocumentExtractionException("Semantic extraction response was not completed");
         String text = response.output().stream().flatMap(i -> i.message().stream()).flatMap(m -> m.content().stream())
                 .flatMap(c -> c.outputText().stream()).map(t -> t.text()).collect(Collectors.joining());
-        var parsed = compactWire ? CompactSemanticTourV3.readModel(text, jsonMapper) : SemanticTourV3Codec.readModel(text, jsonMapper);
+        var parsed = SemanticTourV3Codec.readModel(text, jsonMapper);
         var endings = SemanticEndingReconciler.reconcile(parsed.bookings());
         endings.changes().forEach(change -> org.slf4j.LoggerFactory.getLogger(getClass()).warn(
                 "Ending reconciled to AMBIGUOUS bookingIndex={} meaning={} hadLocation={}",
                 change.bookingIndex(), change.meaning(), change.hadLocation()));
         var result = new SemanticTourExtractionV3(parsed.schemaVersion(),
-                new SemanticTourExtraction.Provenance(digest, model, compactWire ? CompactSemanticTourV3.PROMPT_VERSION : SemanticTourExtractionV3.PROMPT_VERSION,
+                new SemanticTourExtraction.Provenance(digest, model, SemanticTourExtractionV3.PROMPT_VERSION,
                         response.id(), java.time.Instant.now()), endings.bookings(), parsed.supplementalFacts(), parsed.supplementalCoverageWarning());
         new SemanticTourExtractionV3Validator().validate(result, digest);
         var grounding = sourceEvidence.validate(result);

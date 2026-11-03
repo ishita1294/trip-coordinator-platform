@@ -39,11 +39,10 @@ public class DocumentExtractionRoutingService {
             document.setDocumentType(classifiedType); // Same locked ownership boundary; retries reuse classification.
             return new Decision(saved,classifiedType);
         }
-        if (saved != Version.AUTO_V3_4 && saved != Version.AUTO_V3_4_COMPACT) return new Decision(saved,document.getDocumentType());
+        if (saved != Version.AUTO_V3_4) return new Decision(saved,document.getDocumentType());
 
         var selected=classifiedType == null ? Version.UNSUPPORTED : switch (classifiedType) {
-            case ATTRACTION_TICKET, TOUR_BOOKING -> saved == Version.AUTO_V3_4_COMPACT
-                    ? Version.SEMANTIC_V3_4_COMPACT : Version.SEMANTIC_V3_4;
+            case ATTRACTION_TICKET, TOUR_BOOKING -> Version.SEMANTIC_V3_4;
             case FLIGHT_CONFIRMATION -> Version.FLIGHT_V1;
             default -> Version.UNSUPPORTED;
         };

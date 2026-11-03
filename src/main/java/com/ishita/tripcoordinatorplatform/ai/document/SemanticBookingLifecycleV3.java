@@ -17,15 +17,9 @@ public final class SemanticBookingLifecycleV3 {
                 new SemanticFactV3.Interpretation(SemanticFact.Basis.NOT_ESTABLISHED,List.of(),null));
     }
     static void validate(SemanticTourExtractionV3 extraction, SemanticTourExtractionV3Validator validator) {
-        boolean current=SemanticTourExtractionV3.isV34Contract(extraction.provenance().promptVersion());
         Map<Integer,List<Integer>> edges=new HashMap<>();
         for(var b:extraction.bookings()) {
             require(b.lifecycle()!=null && b.replaces()!=null,"Lifecycle fact and replacement list are required");
-            if(!current) {
-                require(b.lifecycle().equals(unestablished()) && b.replaces().isEmpty(),
-                        "Historical contracts cannot acquire lifecycle claims");
-                continue;
-            }
             var fields=validator.fields(b);
             validateLocalFact(b.lifecycle(),b.bookingIndex(),fields,validator);
             require(b.lifecycle().status()!=CLEAR || b.lifecycle().value()!=State.UNKNOWN,

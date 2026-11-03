@@ -24,7 +24,6 @@ import com.ishita.tripcoordinatorplatform.model.TravelDocumentType;
 import com.ishita.tripcoordinatorplatform.repository.TravelDocumentRepository;
 import com.ishita.tripcoordinatorplatform.repository.TravelDocumentExtractionRepository;
 import com.ishita.tripcoordinatorplatform.response.TravelDocumentExtractionResponse;
-import com.ishita.tripcoordinatorplatform.response.TravelDocumentExtractionSummaryResponse;
 import com.ishita.tripcoordinatorplatform.response.TravelDocumentProcessingResponse;
 import com.ishita.tripcoordinatorplatform.response.TravelDocumentSummaryResponse;
 import com.ishita.tripcoordinatorplatform.storage.DocumentStorage;
@@ -131,7 +130,6 @@ public class TravelDocumentProcessingService {
             throw DocumentProcessingException.permanentInput("Extraction is not implemented for this document category");
         TravelDocumentType documentType = document.getDocumentType();
         String extractedData = null;
-        SemanticTourExtraction semanticResult = null;
         SemanticTourExtractionV3 semanticV3Result = null;
         String sourceSha256 = null;
         String nativeResult=null;
@@ -156,7 +154,7 @@ public class TravelDocumentProcessingService {
                 org.slf4j.LoggerFactory.getLogger(getClass()).info("Document stage documentId={} stage=classification elapsedMs={}",
                         documentId, (System.nanoTime() - classificationStarted) / 1_000_000);
             }
-            if (version == TourExtractionCodec.Version.AUTO_V3_4 || version == TourExtractionCodec.Version.AUTO_V3_4_COMPACT || version == TourExtractionCodec.Version.SOURCE_BOOKING_V1_REVIEW) {
+            if (version == TourExtractionCodec.Version.AUTO_V3_4 || version == TourExtractionCodec.Version.SOURCE_BOOKING_V1_REVIEW) {
                 var decision = extractionRouting.resolve(documentId, document.getProcessingJobId(), attemptId, documentType);
                 version = decision.contract();
                 documentType = decision.documentType();
@@ -183,20 +181,13 @@ public class TravelDocumentProcessingService {
                     long validateStarted=System.nanoTime();
                     new com.ishita.tripcoordinatorplatform.ai.document.SourceBookingReaderV1().read(nativeResult,jsonMapper,nativeInput);
                     org.slf4j.LoggerFactory.getLogger(getClass()).info("Document native stage documentId={} jobId={} attemptId={} stage=validation elapsedMs={}",documentId,document.getProcessingJobId(),attemptId,(System.nanoTime()-validateStarted)/1_000_000);
-                } else if (version == TourExtractionCodec.Version.SEMANTIC_V2) {
-                    sourceSha256 = TourExtractionCodec.sourceSha256(aiInput.content());
-                    semanticResult = attractionTourDocumentExtractor.extractSemantic(aiInput);
-                    new SemanticTourExtractionValidator().validate(semanticResult, sourceSha256);
-                } else if (version == TourExtractionCodec.Version.SEMANTIC_V3_4 || version == TourExtractionCodec.Version.SEMANTIC_V3_4_COMPACT) {
+                } else if (version == TourExtractionCodec.Version.SEMANTIC_V3_4) {
                     if (!"tour-semantic-3.4".equals(SemanticTourExtractionV3.PROMPT_VERSION))
                         throw DocumentProcessingException.permanentInput("The saved V3.4 extraction contract is unavailable");
                     sourceSha256 = TourExtractionCodec.sourceSha256(aiInput.content());
-                    boolean compact = version == TourExtractionCodec.Version.SEMANTIC_V3_4_COMPACT;
-                    String expectedContract = compact ? SemanticTourExtractionV3.COMPACT_PROMPT_VERSION : SemanticTourExtractionV3.PROMPT_VERSION;
-                    semanticV3Result = compact ? attractionTourDocumentExtractor.extractCompactSemanticV3(aiInput)
-                            : attractionTourDocumentExtractor.extractSemanticV3(aiInput);
+                    semanticV3Result = attractionTourDocumentExtractor.extractSemanticV3(aiInput);
                     if (semanticV3Result == null || semanticV3Result.provenance() == null
-                            || !expectedContract.equals(semanticV3Result.provenance().promptVersion()))
+                            || !SemanticTourExtractionV3.PROMPT_VERSION.equals(semanticV3Result.provenance().promptVersion()))
                         throw new InvalidDocumentExtractionException("Expected V3.4 extraction");
                     new SemanticTourExtractionV3Validator().validate(semanticV3Result, sourceSha256);
                 } else if (version == TourExtractionCodec.Version.LEGACY) {
@@ -234,8 +225,6 @@ public class TravelDocumentProcessingService {
                 result=finalizationService.finalizeSourceBookingV1(documentId,attemptId,documentType,nativeResult,nativeInput);
             } else if (semanticV3Result != null) {
                 result = finalizationService.finalizeSemanticV3Document(documentId, attemptId, documentType, semanticV3Result, sourceSha256);
-            } else if (semanticResult != null) {
-                result = finalizationService.finalizeSemanticDocument(documentId, attemptId, documentType, semanticResult, sourceSha256);
             } else {
                 result = finalizationService.finalizeDocument(documentId, attemptId, documentType, extractedData);
             }
@@ -257,27 +246,16 @@ public class TravelDocumentProcessingService {
                 .toList();
     }
 
-    public List<TravelDocumentExtractionSummaryResponse> getDocumentExtractions(Long tripId, Long documentId) {
-        travelDocumentRepository.findByIdAndTrip_Id(documentId, tripId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Travel document not found"));
-        return travelDocumentExtractionRepository
-                .findAllByTravelDocument_IdOrderByCreatedAtDescIdDesc(documentId).stream()
-                .map(extraction -> new TravelDocumentExtractionSummaryResponse(
-                        extraction.getId(), extraction.getCreatedAt()))
-                .toList();
-    }
-
     public TravelDocumentExtractionResponse getCurrentDocumentExtraction(Long tripId, Long documentId) {
-        return currentDocumentExtraction(tripId,documentId,false,v3WorkflowEnabled);
+        return currentDocumentExtraction(tripId,documentId,v3WorkflowEnabled);
     }
 
     // Local integration only; ordinary controllers call the two-argument method above.
     TravelDocumentExtractionResponse getCurrentDocumentExtraction(Long tripId,Long documentId,TourConfirmationPolicy localPolicy){
-        return currentDocumentExtraction(tripId,documentId,localPolicy.semanticWorkflowEnabled(),localPolicy.semanticV3WorkflowEnabled());
+        return currentDocumentExtraction(tripId,documentId,localPolicy.semanticV3WorkflowEnabled());
     }
 
-    private TravelDocumentExtractionResponse currentDocumentExtraction(Long tripId,Long documentId,boolean semanticWorkflowEnabled,boolean v3WorkflowEnabled){
+    private TravelDocumentExtractionResponse currentDocumentExtraction(Long tripId,Long documentId,boolean v3WorkflowEnabled){
         TravelDocument document = travelDocumentRepository.findByIdAndTrip_Id(documentId, tripId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Travel document not found"));
@@ -285,42 +263,10 @@ public class TravelDocumentProcessingService {
                 .findFirstByTravelDocument_IdOrderByCreatedAtDescIdDesc(documentId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Travel document extraction not found"));
-        return extractionResponse(document, extraction,semanticWorkflowEnabled,v3WorkflowEnabled);
+        return extractionResponse(document, extraction,v3WorkflowEnabled);
     }
 
-    public TravelDocumentExtractionResponse getDocumentExtraction(
-            Long tripId,
-            Long documentId,
-            Long extractionId
-    ) {
-        TravelDocument document = travelDocumentRepository
-                .findByIdAndTrip_Id(documentId, tripId)
-                .orElseThrow(() ->
-                        new ResponseStatusException(
-                                HttpStatus.NOT_FOUND,
-                                "Travel document not found"
-                        )
-                );
-
-        TravelDocumentExtraction extraction = travelDocumentExtractionRepository
-                .findByIdAndTravelDocument_Id(extractionId, documentId)
-                .orElseThrow(() ->
-                        new ResponseStatusException(
-                                HttpStatus.NOT_FOUND,
-                                "Travel document extraction not found"
-                        )
-                );
-
-        return extractionResponse(document, extraction);
-    }
-
-    private TravelDocumentExtractionResponse extractionResponse(
-            TravelDocument document, TravelDocumentExtraction extraction
-    ) {
-        return extractionResponse(document,extraction,false,false);
-    }
-
-    private TravelDocumentExtractionResponse extractionResponse(TravelDocument document,TravelDocumentExtraction extraction,boolean semanticWorkflowEnabled,boolean v3WorkflowEnabled) {
+    private TravelDocumentExtractionResponse extractionResponse(TravelDocument document,TravelDocumentExtraction extraction,boolean v3WorkflowEnabled) {
         JsonNode extractedData;
         try {
             extractedData = jsonMapper.readTree(extraction.getExtractedData());
@@ -344,12 +290,11 @@ public class TravelDocumentProcessingService {
         com.ishita.tripcoordinatorplatform.response.SemanticTourReview semanticReview = null;
         if (document.getDocumentType() == TravelDocumentType.TOUR_BOOKING || document.getDocumentType() == TravelDocumentType.ATTRACTION_TICKET) {
             var decoded = new TourExtractionCodec(jsonMapper).decode(extraction.getExtractedData());
-            if (decoded.semantic() != null || decoded.semanticV3() != null) {
+            if (decoded.semanticV3() != null) {
                 if (extraction.getTravelDocument() == null || !document.getId().equals(extraction.getTravelDocument().getId()))
                     throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Travel document extraction not found");
-                semanticReview = decoded.semanticV3() != null
-                        ? com.ishita.tripcoordinatorplatform.response.SemanticTourReview.fromV3(document.getId(),extraction.getId(),decoded.semanticV3(),v3WorkflowEnabled)
-                        : com.ishita.tripcoordinatorplatform.response.SemanticTourReview.from(document.getId(), extraction.getId(), decoded.semantic(),semanticWorkflowEnabled);
+                semanticReview = com.ishita.tripcoordinatorplatform.response.SemanticTourReview.fromV3(
+                        document.getId(), extraction.getId(), decoded.semanticV3(), v3WorkflowEnabled);
             }
         }
         return new TravelDocumentExtractionResponse(

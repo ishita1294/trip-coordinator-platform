@@ -5,7 +5,6 @@ import com.ishita.tripcoordinatorplatform.request.ConfirmAttractionTourDocumentR
 import com.ishita.tripcoordinatorplatform.response.ConfirmDocumentResponse;
 import com.ishita.tripcoordinatorplatform.service.DocumentConfirmationService;
 import com.ishita.tripcoordinatorplatform.response.TravelDocumentExtractionResponse;
-import com.ishita.tripcoordinatorplatform.response.TravelDocumentExtractionSummaryResponse;
 import com.ishita.tripcoordinatorplatform.response.TravelDocumentSummaryResponse;
 import com.ishita.tripcoordinatorplatform.service.TravelDocumentProcessingService;
 import com.ishita.tripcoordinatorplatform.service.TravelDocumentUploadService;
@@ -59,15 +58,6 @@ public class TravelDocumentController {
         return access.list(tripId);
     }
 
-    @GetMapping("/{documentId}/extractions")
-    public List<TravelDocumentExtractionSummaryResponse> getDocumentExtractions(
-            @PathVariable Long tripId,
-            @PathVariable Long documentId
-    ) {
-        access.require(tripId,documentId,false);
-        return travelDocumentProcessingService.getDocumentExtractions(tripId, documentId);
-    }
-
     @GetMapping("/{documentId}/extraction")
     public TravelDocumentExtractionResponse getCurrentDocumentExtraction(
             @PathVariable Long tripId,
@@ -75,20 +65,6 @@ public class TravelDocumentController {
     ) {
         access.require(tripId,documentId,false);
         return travelDocumentProcessingService.getCurrentDocumentExtraction(tripId, documentId);
-    }
-
-    @GetMapping("/{documentId}/extractions/{extractionId}")
-    public TravelDocumentExtractionResponse getDocumentExtraction(
-            @PathVariable Long tripId,
-            @PathVariable Long documentId,
-            @PathVariable Long extractionId
-    ) {
-        access.require(tripId,documentId,false);
-        return travelDocumentProcessingService.getDocumentExtraction(
-                tripId,
-                documentId,
-                extractionId
-        );
     }
 
     @PostMapping("/{documentId}/confirm")

@@ -51,9 +51,7 @@ public final class SemanticTourExtractionV3Validator {
                 }
             }
             SemanticTemporalConstraintV3.validate(b, this, facts);
-            if (SemanticTourExtractionV3.LEGACY_PROMPT_VERSION.equals(p.promptVersion()))
-                require(b.temporalConstraints().isEmpty(), "Temporal constraints require explicit contract 3.2 identity");
-            if (!SemanticTourExtractionV3.LEGACY_PROMPT_VERSION.equals(p.promptVersion()) && (b.requiredArrival().status() == Status.CLEAR || b.arrivalLeadMinutes().status() == Status.CLEAR))
+            if (b.requiredArrival().status() == Status.CLEAR || b.arrivalLeadMinutes().status() == Status.CLEAR)
                 require(b.temporalConstraints().stream().anyMatch(c -> c.target() == SemanticTemporalConstraintV3.Target.REQUIRED_ARRIVAL),
                         "Arrival semantics must be explicit in contract 3.2");
             consistency(b);
