@@ -260,51 +260,27 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
     /** Uses the V3.4 contract selected by the processing job. */
     @Override
     public SemanticTourExtractionV3 extractSemanticV3(DocumentAiInput document) {
-        return extractSemanticV3(document, false);
-    }
-
-    /** Direct comparison only. No Spring setting or worker route enables this experimental instruction. */
-    SemanticTourExtractionV3 extractCompactSemanticV3Candidate(DocumentAiInput document) {
-        if (!"gpt-6-sol".equals(model) || lowReasoningCandidate)
-            throw new IllegalArgumentException("Compact V3.4 comparison requires gpt-6-sol with medium reasoning");
-        return extractSemanticV3(document, true);
-    }
-
-    @Override
-    public SemanticTourExtractionV3 extractCompactSemanticV3(DocumentAiInput document) {
-        if (lowReasoningCandidate) throw new IllegalArgumentException("Compact contract cannot combine reasoning experiments");
-        return extractSemanticV3(document, false, true);
-    }
-
-    private SemanticTourExtractionV3 extractSemanticV3(DocumentAiInput document, boolean compactCandidate) {
-        return extractSemanticV3(document, compactCandidate, false);
-    }
-
-    private SemanticTourExtractionV3 extractSemanticV3(DocumentAiInput document, boolean compactCandidate, boolean compactWire) {
         if (document == null || document.content() == null || document.content().length == 0)
             throw new IllegalArgumentException("Document content is required for semantic extraction");
         var source = new DocumentAiInput(document.originalFileName(), document.contentType(), document.content().clone());
         String digest = TourExtractionCodec.sourceSha256(source.content());
         // Read any available text without requiring a text layer for supported scan/image inputs.
         var sourceEvidence = SemanticTourSourceEvidence.read(source);
-        String instructions = compactWire ? CompactSemanticTourV3.INSTRUCTIONS : SemanticTourSchemaV3.INSTRUCTIONS
-                + (compactCandidate ? "\n" + COMPACT_JSON_INSTRUCTION : "");
-        ReasoningEffort effort = compactCandidate ? ReasoningEffort.MEDIUM
-                : lowReasoningCandidate ? ReasoningEffort.LOW : null;
-        var response = readDocument(source, instructions, compactWire ? CompactSemanticTourV3.schema() : SemanticTourSchemaV3.schema(),
-                compactWire ? CompactSemanticTourV3.OUTPUT_NAME : SemanticTourExtractionV3.STRUCTURED_OUTPUT_NAME, effort);
+        ReasoningEffort effort = lowReasoningCandidate ? ReasoningEffort.LOW : null;
+        var response = readDocument(source, SemanticTourSchemaV3.INSTRUCTIONS, SemanticTourSchemaV3.schema(),
+                SemanticTourExtractionV3.STRUCTURED_OUTPUT_NAME, effort);
         if (response.error().isPresent() || response.incompleteDetails().isPresent()
                 || !response.status().filter(com.openai.models.responses.ResponseStatus.COMPLETED::equals).isPresent())
             throw new InvalidDocumentExtractionException("Semantic extraction response was not completed");
         String text = response.output().stream().flatMap(i -> i.message().stream()).flatMap(m -> m.content().stream())
                 .flatMap(c -> c.outputText().stream()).map(t -> t.text()).collect(Collectors.joining());
-        var parsed = compactWire ? CompactSemanticTourV3.readModel(text, jsonMapper) : SemanticTourV3Codec.readModel(text, jsonMapper);
+        var parsed = SemanticTourV3Codec.readModel(text, jsonMapper);
         var endings = SemanticEndingReconciler.reconcile(parsed.bookings());
         endings.changes().forEach(change -> org.slf4j.LoggerFactory.getLogger(getClass()).warn(
                 "Ending reconciled to AMBIGUOUS bookingIndex={} meaning={} hadLocation={}",
                 change.bookingIndex(), change.meaning(), change.hadLocation()));
         var result = new SemanticTourExtractionV3(parsed.schemaVersion(),
-                new SemanticTourExtraction.Provenance(digest, model, compactWire ? CompactSemanticTourV3.PROMPT_VERSION : SemanticTourExtractionV3.PROMPT_VERSION,
+                new SemanticTourExtraction.Provenance(digest, model, SemanticTourExtractionV3.PROMPT_VERSION,
                         response.id(), java.time.Instant.now()), endings.bookings(), parsed.supplementalFacts(), parsed.supplementalCoverageWarning());
         new SemanticTourExtractionV3Validator().validate(result, digest);
         var grounding = sourceEvidence.validate(result);

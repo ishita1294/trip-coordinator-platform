@@ -16,10 +16,6 @@ public interface AttractionTourDocumentExtractor {
         throw new UnsupportedOperationException(
                 "The configured adapter does not support V3.4 extraction");
     }
-    /** Uses the explicitly persisted compact wire contract, returning the full semantic domain. */
-    default SemanticTourExtractionV3 extractCompactSemanticV3(DocumentAiInput document) {
-        throw new UnsupportedOperationException("Compact V3.4 extraction is not supported by this adapter");
-    }
     default TourSourceAssessment assessCorrections(DocumentAiInput document, String originalBookings,
             java.util.List<com.ishita.tripcoordinatorplatform.request.TourCorrectionRequest.Change> changes) {
         throw new UnsupportedOperationException("Source reinspection is unavailable");

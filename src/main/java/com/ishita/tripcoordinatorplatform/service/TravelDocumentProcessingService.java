@@ -155,7 +155,7 @@ public class TravelDocumentProcessingService {
                 org.slf4j.LoggerFactory.getLogger(getClass()).info("Document stage documentId={} stage=classification elapsedMs={}",
                         documentId, (System.nanoTime() - classificationStarted) / 1_000_000);
             }
-            if (version == TourExtractionCodec.Version.AUTO_V3_4 || version == TourExtractionCodec.Version.AUTO_V3_4_COMPACT || version == TourExtractionCodec.Version.SOURCE_BOOKING_V1_REVIEW) {
+            if (version == TourExtractionCodec.Version.AUTO_V3_4 || version == TourExtractionCodec.Version.SOURCE_BOOKING_V1_REVIEW) {
                 var decision = extractionRouting.resolve(documentId, document.getProcessingJobId(), attemptId, documentType);
                 version = decision.contract();
                 documentType = decision.documentType();
@@ -186,16 +186,13 @@ public class TravelDocumentProcessingService {
                     sourceSha256 = TourExtractionCodec.sourceSha256(aiInput.content());
                     semanticResult = attractionTourDocumentExtractor.extractSemantic(aiInput);
                     new SemanticTourExtractionValidator().validate(semanticResult, sourceSha256);
-                } else if (version == TourExtractionCodec.Version.SEMANTIC_V3_4 || version == TourExtractionCodec.Version.SEMANTIC_V3_4_COMPACT) {
+                } else if (version == TourExtractionCodec.Version.SEMANTIC_V3_4) {
                     if (!"tour-semantic-3.4".equals(SemanticTourExtractionV3.PROMPT_VERSION))
                         throw DocumentProcessingException.permanentInput("The saved V3.4 extraction contract is unavailable");
                     sourceSha256 = TourExtractionCodec.sourceSha256(aiInput.content());
-                    boolean compact = version == TourExtractionCodec.Version.SEMANTIC_V3_4_COMPACT;
-                    String expectedContract = compact ? SemanticTourExtractionV3.COMPACT_PROMPT_VERSION : SemanticTourExtractionV3.PROMPT_VERSION;
-                    semanticV3Result = compact ? attractionTourDocumentExtractor.extractCompactSemanticV3(aiInput)
-                            : attractionTourDocumentExtractor.extractSemanticV3(aiInput);
+                    semanticV3Result = attractionTourDocumentExtractor.extractSemanticV3(aiInput);
                     if (semanticV3Result == null || semanticV3Result.provenance() == null
-                            || !expectedContract.equals(semanticV3Result.provenance().promptVersion()))
+                            || !SemanticTourExtractionV3.PROMPT_VERSION.equals(semanticV3Result.provenance().promptVersion()))
                         throw new InvalidDocumentExtractionException("Expected V3.4 extraction");
                     new SemanticTourExtractionV3Validator().validate(semanticV3Result, sourceSha256);
                 } else if (version == TourExtractionCodec.Version.LEGACY) {
