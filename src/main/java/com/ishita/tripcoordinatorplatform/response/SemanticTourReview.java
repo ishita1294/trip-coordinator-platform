@@ -30,21 +30,6 @@ public record SemanticTourReview(Long documentId, Long extractionId, int schemaV
         }
     }
 
-    public static SemanticTourReview from(Long documentId, Long extractionId, SemanticTourExtraction extraction) {
-        return from(documentId,extractionId,extraction,false);
-    }
-    public static SemanticTourReview from(Long documentId,Long extractionId,SemanticTourExtraction extraction,boolean workflowEnabled){
-        var validator = new SemanticTourExtractionValidator();
-        return new SemanticTourReview(documentId, extractionId, extraction.schemaVersion(), workflowEnabled,
-                workflowEnabled?null:"SEMANTIC_CONFIRMATION_NOT_ENABLED", extraction.provenance(), extraction.bookings().stream()
-                .map(b -> {
-                    var timing=validator.timing(b);
-                    var candidate=timing.requiredArrival()==null?null:java.time.LocalDateTime.ofInstant(timing.requiredArrival(),java.time.ZoneId.of(b.timezone().value()));
-                    return new BookingReview(b.bookingIndex(), b, timing,
-                            com.ishita.tripcoordinatorplatform.ai.document.SemanticBookingProposal.from(b),candidate);
-                }).toList(),List.of(),null);
-    }
-
     @com.fasterxml.jackson.annotation.JsonProperty("lifecycleClarificationSupported")
     public boolean lifecycleClarificationSupported(){
         return schemaVersion==3 && SemanticTourExtractionV3.PROMPT_VERSION.equals(serverProvenance.promptVersion())

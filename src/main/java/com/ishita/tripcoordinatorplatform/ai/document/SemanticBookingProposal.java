@@ -43,7 +43,7 @@ public record SemanticBookingProposal(AttractionTourBookingExtraction booking, L
         return usable(f,b.bookingIndex(),field,checks)?f.shape():new SemanticFact<>(SemanticFact.Status.MISSING,null,List.of(),List.of(),
                 "Provisional calculation excluded from authoritative mapping",new SemanticFact.Derivation(SemanticFact.Basis.NOT_ESTABLISHED,List.of()));
     }
-    public static SemanticBookingProposal from(SemanticTourExtraction.Booking b) {
+    private static SemanticBookingProposal from(SemanticTourExtraction.Booking b) {
         var start=clear(b.start());var end=clear(b.end());var ending=clear(b.endingPoint());
         String choice=ending==null?"UNKNOWN":switch(ending.meaning()) {
             case SAME_AS_MEETING_POINT -> "SAME_AS_MEETING_POINT";
