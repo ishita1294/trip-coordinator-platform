@@ -54,7 +54,7 @@ public class SourceBookingAcceptedReviewService {
     }
     private Review compose(TravelDocument doc,TravelDocumentExtraction extraction,DocumentAiInput original,List<Change> pending,Instant cutoff) {
         var tree=mapper.readTree(extraction.getExtractedData());
-        var base=SourceBookingStoredV1.isStored(tree)?SourceBookingStoredV1.read(extraction.getExtractedData(),mapper,original).review(mapper,original)
+        var base=StoredSourceBooking.isStored(tree)?StoredSourceBooking.read(extraction.getExtractedData(),mapper,original).review(mapper,original)
                 :SourceBookingReview.read(extraction.getExtractedData(),mapper,original);
         var accepted=bookingState.accepted(doc,extraction).stream().filter(r->cutoff==null || !r.acceptedAt.isAfter(cutoff)).toList(); // Existing acceptedAt/id ordering.
         var merged=new LinkedHashMap<String,Change>();var history=new ArrayList<Acceptance>();var seen=new HashSet<Long>();

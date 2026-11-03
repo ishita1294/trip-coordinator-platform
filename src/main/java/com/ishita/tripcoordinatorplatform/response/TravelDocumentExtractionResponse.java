@@ -12,11 +12,11 @@ public record TravelDocumentExtractionResponse(Long extractionId,
                                                JsonNode extractedData, java.util.List<com.ishita.tripcoordinatorplatform.intelligence.commitment.ConfirmedArrivalEvidence.Review> arrivalReview,boolean endingLocationReviewSupported,
                                                SemanticTourReview semanticReview,
                                                @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) com.ishita.tripcoordinatorplatform.ai.document.SourceBookingReview.Review sourceBookingReview,
-                                               @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) com.ishita.tripcoordinatorplatform.ai.document.SourceBookingStoredV1.Provenance sourceBookingProvenance) {
+                                               @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) com.ishita.tripcoordinatorplatform.ai.document.StoredSourceBooking.Provenance sourceBookingProvenance) {
     public TravelDocumentExtractionResponse {
-        if(com.ishita.tripcoordinatorplatform.ai.document.SourceBookingStoredV1.isNativeVersion(extractedData)) {
+        if(com.ishita.tripcoordinatorplatform.ai.document.StoredSourceBooking.isNativeVersion(extractedData)) {
             if(sourceBookingReview==null||sourceBookingProvenance==null||semanticReview!=null||sourceBookingReview.schemaVersion()!=4
-                    ||sourceBookingReview.confirmationSupported()||!com.ishita.tripcoordinatorplatform.ai.document.SourceBookingStoredV1.isStored(extractedData))
+                    ||sourceBookingReview.confirmationSupported()||!com.ishita.tripcoordinatorplatform.ai.document.StoredSourceBooking.isStored(extractedData))
                 throw new IllegalArgumentException("Native read-only review identity mismatch");
             arrivalReview=java.util.List.of();endingLocationReviewSupported=false;
         } else if ((documentType==TravelDocumentType.TOUR_BOOKING || documentType==TravelDocumentType.ATTRACTION_TICKET)
@@ -57,7 +57,7 @@ public record TravelDocumentExtractionResponse(Long extractionId,
     @com.fasterxml.jackson.annotation.JsonProperty("extractionSchemaVersion")
     public Integer extractionSchemaVersion(){
         return documentType==TravelDocumentType.TOUR_BOOKING || documentType==TravelDocumentType.ATTRACTION_TICKET
-                ? com.ishita.tripcoordinatorplatform.ai.document.SourceBookingStoredV1.isNativeVersion(extractedData)?4:com.ishita.tripcoordinatorplatform.ai.document.TourExtractionCodec.schemaVersion(extractedData) : null;
+                ? com.ishita.tripcoordinatorplatform.ai.document.StoredSourceBooking.isNativeVersion(extractedData)?4:com.ishita.tripcoordinatorplatform.ai.document.TourExtractionCodec.schemaVersion(extractedData) : null;
     }
     @com.fasterxml.jackson.annotation.JsonProperty("confirmationSupported")
     public boolean confirmationSupported(){return extractionSchemaVersion()==null || extractionSchemaVersion()==1 || extractionSchemaVersion()>=2 && semanticReview!=null && semanticReview.confirmationSupported();}

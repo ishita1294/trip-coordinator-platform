@@ -275,12 +275,12 @@ public class TravelDocumentProcessingService {
             throw new IllegalStateException("Stored extraction JSON is empty");
         }
 
-        if(com.ishita.tripcoordinatorplatform.ai.document.SourceBookingStoredV1.isNativeVersion(extractedData)) {
+        if(com.ishita.tripcoordinatorplatform.ai.document.StoredSourceBooking.isNativeVersion(extractedData)) {
             if(extraction.getTravelDocument()==null||!Objects.equals(document.getId(),extraction.getTravelDocument().getId()))
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND);
             try(var input=documentStorage.open(document.getStorageKey())) {
                 var original=new DocumentAiInput(document.getOriginalFileName(),document.getContentType(),input.readAllBytes());
-                var stored=com.ishita.tripcoordinatorplatform.ai.document.SourceBookingStoredV1.read(extraction.getExtractedData(),jsonMapper,original);
+                var stored=com.ishita.tripcoordinatorplatform.ai.document.StoredSourceBooking.read(extraction.getExtractedData(),jsonMapper,original);
                 return new TravelDocumentExtractionResponse(extraction.getId(),document.getId(),document.getDocumentType(),extraction.getCreatedAt(),
                         extractedData,List.of(),false,null,stored.review(jsonMapper,original),stored.provenance());
             }catch(IOException unavailable){throw new IllegalStateException("Original source is unavailable for native review",unavailable);}

@@ -58,9 +58,9 @@ public class SourceBookingCorrectionService {
     }
     public record ScheduleRequest(Long extractionId,UUID requestId,String acceptedStateToken,Integer bookingIndex,tools.jackson.databind.JsonNode proposal) {}
     private void requireReadOnlyNative(TravelDocumentExtraction extraction,DocumentAiInput original) {
-        if(!SourceBookingStoredV1.isStored(mapper.readTree(extraction.getExtractedData())))
+        if(!StoredSourceBooking.isStored(mapper.readTree(extraction.getExtractedData())))
             throw TourCorrectionException.invalid("This operation is only for native read-only evaluation documents.");
-        SourceBookingStoredV1.read(extraction.getExtractedData(),mapper,original);
+        StoredSourceBooking.read(extraction.getExtractedData(),mapper,original);
     }
     @Transactional(readOnly=true)
     public SourceBookingAcceptedReviewService.Review scheduleState(Long tripId,Long documentId,Long actor,DocumentAiInput original) {

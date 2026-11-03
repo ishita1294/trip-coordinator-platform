@@ -34,7 +34,7 @@ public class TourConfirmationPolicy {
             throw TourCorrectionException.stale("Original source no longer matches the semantic extraction.");
     }
     public void requireLegacyExtraction(String json){
-        if(com.ishita.tripcoordinatorplatform.ai.document.SourceBookingStoredV1.isNativeVersion(mapper.readTree(json)))
+        if(com.ishita.tripcoordinatorplatform.ai.document.StoredSourceBooking.isNativeVersion(mapper.readTree(json)))
             throw TourCorrectionException.validation("READ_ONLY_EVALUATION","Native evaluation documents do not support correction or confirmation.");
 
         try {
