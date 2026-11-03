@@ -203,26 +203,6 @@ public class ConflictResolutionService {
     }
 
     /**
-     * Parses an AI response and validates its proposed itinerary changes
-     * against application rules before it can be used.
-     */
-    public ConflictResolutionResponse processAiResponse(
-            Long tripId,
-            Long conflictId,
-            String responseJson
-    ) {
-        ConflictResolutionResponse response = parseResponse(responseJson);
-
-        validateResponse(
-                tripId,
-                conflictId,
-                response
-        );
-
-        return response;
-    }
-
-    /**
      * Generates and validates temporary mock AI suggestions
      * for an itinerary conflict.
      */

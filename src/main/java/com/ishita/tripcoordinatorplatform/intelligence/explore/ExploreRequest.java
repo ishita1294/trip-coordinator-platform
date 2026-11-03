@@ -12,9 +12,6 @@ public record ExploreRequest(Long userId, LocationObservation location, TravelMo
     public ExploreRequest(Long userId,LocationObservation location,TravelMode mode,ExplorePreference preference,Integer minimumVisitMinutes,String scheduleTimeZone,CommitmentOverride commitmentOverride,java.util.List<TimeZoneClarification> timeZoneClarifications,java.util.List<String> evaluatedPlaceIds,ExploreIntent intent,com.ishita.tripcoordinatorplatform.intelligence.planning.FreeTimeOpportunities.Selection opportunity,java.time.Instant departureAt,Workflow workflow,Continuation continuation,StartContext startContext,TravelMode repositioningMode,TravelMode onwardMode) {
         this(userId,location,mode,preference,minimumVisitMinutes,scheduleTimeZone,commitmentOverride,timeZoneClarifications,evaluatedPlaceIds,intent,opportunity,departureAt,workflow,continuation,startContext,repositioningMode,onwardMode,null);
     }
-    public ExploreRequest withOriginPlaceId(String placeId) {
-        return new ExploreRequest(userId,null,mode,preference,minimumVisitMinutes,scheduleTimeZone,commitmentOverride,timeZoneClarifications,evaluatedPlaceIds,intent,opportunity,departureAt,workflow,continuation,startContext,repositioningMode,onwardMode,placeId);
-    }
     ExploreRequest withResolvedOrigin(LocationObservation observation) {
         return new ExploreRequest(userId,observation,mode,preference,minimumVisitMinutes,scheduleTimeZone,commitmentOverride,timeZoneClarifications,evaluatedPlaceIds,intent,opportunity,departureAt,workflow,continuation,startContext,repositioningMode,onwardMode,null);
     }
