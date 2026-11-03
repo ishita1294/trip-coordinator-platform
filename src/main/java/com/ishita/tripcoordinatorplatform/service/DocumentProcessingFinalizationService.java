@@ -55,7 +55,7 @@ public class DocumentProcessingFinalizationService {
 
     /** Read-only native envelope; source digest/job identity are assigned by this fenced transaction, never the model. */
     @Transactional(timeout=10)
-    public TravelDocumentProcessingResponse finalizeSourceBookingV1(Long documentId,UUID attemptId,TravelDocumentType type,String raw,
+    public TravelDocumentProcessingResponse finalizeSourceBooking(Long documentId,UUID attemptId,TravelDocumentType type,String raw,
             com.ishita.tripcoordinatorplatform.ai.document.DocumentAiInput original) {
         if(!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive())
             throw new IllegalStateException("Native finalization requires an active transaction");

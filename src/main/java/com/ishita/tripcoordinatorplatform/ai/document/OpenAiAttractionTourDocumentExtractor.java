@@ -104,7 +104,7 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
     }
 
     @Override
-    public String extractSourceBookingV1(DocumentAiInput document) {
+    public String extractSourceBooking(DocumentAiInput document) {
         var response=readDocument(document,SourceBookingSchemaV1.INSTRUCTIONS,SourceBookingSchemaV1.schema(),SourceBookingExtraction.OUTPUT_NAME);
         if(response.error().isPresent()||response.incompleteDetails().isPresent()
                 ||!response.status().filter(com.openai.models.responses.ResponseStatus.COMPLETED::equals).isPresent())

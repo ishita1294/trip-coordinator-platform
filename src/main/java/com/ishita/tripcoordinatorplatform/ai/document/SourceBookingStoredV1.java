@@ -15,7 +15,7 @@ public record SourceBookingStoredV1(int schemaVersion,String contract,String mod
     public static boolean isStored(JsonNode root){return root!=null&&root.path("schemaVersion").asInt()==4&&MODE.equals(root.path("mode").asText());}
     public static boolean isNativeVersion(JsonNode root){return root!=null&&root.path("schemaVersion").asInt()==4;}
     public static SourceBookingStoredV1 create(String raw,JsonMapper mapper,DocumentAiInput original,UUID job,Instant uploaded,Instant queued,Instant recorded) {
-        var read=new SourceBookingReaderV1().read(raw,mapper,original);
+        var read=new SourceBookingReader().read(raw,mapper,original);
         if(job==null||uploaded==null||queued==null||recorded==null)throw invalid();
         return new SourceBookingStoredV1(4,SourceBookingExtraction.CONTRACT,MODE,new Provenance(read.sourceSha256(),job,uploaded,queued,recorded),read.facts());
     }
@@ -25,11 +25,11 @@ public record SourceBookingStoredV1(int schemaVersion,String contract,String mod
                     tools.jackson.databind.DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY).readTree(json);
             var stored=mapper.readerFor(SourceBookingStoredV1.class).with(tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
                     tools.jackson.databind.DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES,tools.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS,
-                    tools.jackson.databind.DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY).readValue(SourceBookingReaderV1.withUnboundLegacySchedules(tree).toString());
+                    tools.jackson.databind.DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY).readValue(SourceBookingReader.withUnboundLegacySchedules(tree).toString());
             var value=(SourceBookingStoredV1)stored;
             if(value.schemaVersion()!=4||!MODE.equals(value.mode())||!SourceBookingExtraction.CONTRACT.equals(value.contract())||value.provenance()==null||value.facts()==null
                     ||value.provenance().processingJobId()==null||value.provenance().uploadCompletedAt()==null||value.provenance().queuedAt()==null||value.provenance().readinessRecordedAt()==null)throw invalid();
-            var read=new SourceBookingReaderV1().read(mapper.writeValueAsString(value.facts()),mapper,original);
+            var read=new SourceBookingReader().read(mapper.writeValueAsString(value.facts()),mapper,original);
             if(!Objects.equals(value.provenance().sourceSha256(),read.sourceSha256()))throw invalid();
             return value;
         }catch(tools.jackson.core.JacksonException|IllegalArgumentException malformed){throw invalid();}

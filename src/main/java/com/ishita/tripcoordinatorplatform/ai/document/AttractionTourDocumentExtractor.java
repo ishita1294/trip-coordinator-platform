@@ -3,7 +3,7 @@ package com.ishita.tripcoordinatorplatform.ai.document;
 public interface AttractionTourDocumentExtractor {
     AttractionTourExtractionResult extract(DocumentAiInput document);
     /** Explicit per-job read-only evaluation; no fallback to a different contract. */
-    default String extractSourceBookingV1(DocumentAiInput document) {
+    default String extractSourceBooking(DocumentAiInput document) {
         throw new UnsupportedOperationException("Native SourceBooking extraction is unavailable");
     }
 

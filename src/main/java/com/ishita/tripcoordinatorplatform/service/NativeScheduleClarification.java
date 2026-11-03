@@ -55,7 +55,7 @@ public final class NativeScheduleClarification {
         try {
             var effective=SourceBookingReviewV1.read(tree.toString(),mapper,source);var resolved=effective.bookings().get(index).deterministic();
             if(resolved.projections().stream().filter(x->x.field()==Target.START || x.field()==Target.END)
-                    .filter(x->x.temporalResolution()==SourceBookingReaderV1.TemporalResolution.UNIQUE_INSTANT).count()!=2)
+                    .filter(x->x.temporalResolution()==SourceBookingReader.TemporalResolution.UNIQUE_INSTANT).count()!=2)
                 throw new IllegalArgumentException();
             var start=resolved.projections().stream().filter(x->x.field()==Target.START).findFirst().orElseThrow();
             var end=resolved.projections().stream().filter(x->x.field()==Target.END).findFirst().orElseThrow();

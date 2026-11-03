@@ -10,7 +10,7 @@ import static com.ishita.tripcoordinatorplatform.ai.document.SourceBookingExtrac
 import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.Status.*;
 
 /** Explicit reader only. Does not select a worker route, emit V3, persist, or authorize confirmation. */
-public final class SourceBookingReaderV1 {
+public final class SourceBookingReader {
     public record Projected(Target field, SemanticTourExtraction.LocalMoment moment,
             SemanticTemporalConstraintV3.Relation relation, boolean inclusive,
             TemporalResolution temporalResolution, Instant instant) {}
