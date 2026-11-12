@@ -4,8 +4,8 @@ import java.util.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.Status.CLEAR;
 
 /** Deterministic classification of already validated documentary claims. No reservation mutations or wording interpretation. */
-public final class SemanticBookingEligibility {
-    private SemanticBookingEligibility() {}
+public final class BookingEligibility {
+    private BookingEligibility() {}
     public enum Disposition { ACTIVE_ELIGIBLE, HISTORICAL, REQUIRES_REVIEW }
     public record Booking(int bookingIndex,Disposition disposition,SemanticBookingLifecycleV3.State lifecycleState,String blockCode) {}
     public record Selection(List<Booking> bookings,List<Integer> activeIndexes,String blockCode) {

@@ -132,7 +132,7 @@ public class SourceBookingAcceptedReviewService {
             }
             endpoint(values,corrected,issues);
             var eligibility=new SourceBookingReview.Eligibility(assessed.lifecycleDisposition(),assessed.lifecycle(),
-                    assessed.lifecycleDisposition()==SemanticBookingEligibility.Disposition.ACTIVE_ELIGIBLE && issues.stream().noneMatch(SourceBookingReview.Issue::blocking),issues);
+                    assessed.lifecycleDisposition()==BookingEligibility.Disposition.ACTIVE_ELIGIBLE && issues.stream().noneMatch(SourceBookingReview.Issue::blocking),issues);
             effectiveRows.add(effective.bookings().get(index));
             rows.add(new BookingOverlay(index,values,corrected,invalidated,declarations.get(index),eligibility));
             if(eligibility.reviewReady())eligible.add(index);

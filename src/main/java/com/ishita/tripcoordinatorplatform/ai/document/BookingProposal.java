@@ -6,25 +6,25 @@ import java.util.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.Status.*;
 
 /** Explicit boundary into existing booking fields. Full source facts remain in the immutable envelope. */
-public record SemanticBookingProposal(AttractionTourBookingExtraction booking, LocalDateTime requiredArrivalLocal,
+public record BookingProposal(AttractionTourBookingExtraction booking, LocalDateTime requiredArrivalLocal,
                                       String endingLocationChoice, List<String> unresolvedFields) {
-    public static SemanticBookingProposal fromV3(SemanticTourExtractionV3.Booking b,
+    public static BookingProposal fromV3(SemanticTourExtractionV3.Booking b,
             Map<SemanticFactV3.Reference,SemanticTourExtractionV3Validator.Verification> checks) {
-        var view=from(authoritativeV3(b,checks));
+        var view=from(authoritativeReading(b,checks));
         // Optional identity details may remain unknown, but scheduling/location contradictions still need review.
         var issues=new ArrayList<>(view.unresolvedFields().stream().filter(f->!Set.of("provider","bookingReference").contains(f)).toList());
         if(b.requiredArrival().status()==CLEAR && !usable(b.requiredArrival(),b.bookingIndex(),BookingFact.Field.REQUIRED_ARRIVAL,checks)
                 && view.booking().arrivalLeadMinutes()==null)issues.add("requiredArrivalLocal");
         if (!SemanticTemporalConstraintV3.representable(b)) issues.add("temporalConstraints");
-        return new SemanticBookingProposal(view.booking(),view.requiredArrivalLocal(),view.endingLocationChoice(),List.copyOf(issues));
+        return new BookingProposal(view.booking(),view.requiredArrivalLocal(),view.endingLocationChoice(),List.copyOf(issues));
     }
-    public static TourBookingFactsValidator.Timing timingV3(SemanticTourExtractionV3.Booking b,
+    public static TourBookingFactsValidator.Timing readingTiming(SemanticTourExtractionV3.Booking b,
             Map<SemanticFactV3.Reference,SemanticTourExtractionV3Validator.Verification> checks) {
         if (!SemanticTemporalConstraintV3.representable(b))
             throw new InvalidDocumentExtractionException("Temporal constraint cannot be flattened into scheduling fields");
-        return new TourBookingFactsValidator().timing(authoritativeV3(b,checks));
+        return new TourBookingFactsValidator().timing(authoritativeReading(b,checks));
     }
-    private static TourBookingFacts.Booking authoritativeV3(SemanticTourExtractionV3.Booking b,
+    private static TourBookingFacts.Booking authoritativeReading(SemanticTourExtractionV3.Booking b,
             Map<SemanticFactV3.Reference,SemanticTourExtractionV3Validator.Verification> checks) {
         return new TourBookingFacts.Booking(b.bookingIndex(),safe(b.name(),b,BookingFact.Field.NAME,checks),
                 safe(b.provider(),b,BookingFact.Field.PROVIDER,checks),safe(b.bookingReference(),b,BookingFact.Field.BOOKING_REFERENCE,checks),
@@ -43,7 +43,7 @@ public record SemanticBookingProposal(AttractionTourBookingExtraction booking, L
         return usable(f,b.bookingIndex(),field,checks)?f.shape():new BookingFact<>(BookingFact.Status.MISSING,null,List.of(),List.of(),
                 "Provisional calculation excluded from authoritative mapping",new BookingFact.Derivation(BookingFact.Basis.NOT_ESTABLISHED,List.of()));
     }
-    private static SemanticBookingProposal from(TourBookingFacts.Booking b) {
+    private static BookingProposal from(TourBookingFacts.Booking b) {
         var start=clear(b.start());var end=clear(b.end());var ending=clear(b.endingPoint());
         String choice=ending==null?"UNKNOWN":switch(ending.meaning()) {
             case SAME_AS_MEETING_POINT -> "SAME_AS_MEETING_POINT";
@@ -61,7 +61,7 @@ public record SemanticBookingProposal(AttractionTourBookingExtraction booking, L
         // An uncertain endpoint may remain Unknown; conflicting explicit endpoints need source review.
         if(b.endingPoint().status()==CONFLICTING)issues.add("endingPoint/endingLocationChoice");
         material.forEach((key,f)->{if(f.status()==AMBIGUOUS || f.status()==CONFLICTING)issues.add(key);});
-        return new SemanticBookingProposal(new AttractionTourBookingExtraction(clear(b.name()),clear(b.bookingReference()),clear(b.provider()),
+        return new BookingProposal(new AttractionTourBookingExtraction(clear(b.name()),clear(b.bookingReference()),clear(b.provider()),
                 start==null?null:start.date(),start==null?null:start.time(),end==null?null:end.date(),end==null?null:end.time(),
                 clear(b.durationMinutes()),location(clear(b.meetingPoint())),clear(b.timezone()),instructions(b),clear(b.arrivalLeadMinutes()),
                 ending==null?null:location(ending.location())),

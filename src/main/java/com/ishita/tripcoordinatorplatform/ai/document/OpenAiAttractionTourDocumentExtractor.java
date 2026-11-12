@@ -211,7 +211,7 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
         String text = response.output().stream().flatMap(i -> i.message().stream()).flatMap(m -> m.content().stream())
                 .flatMap(c -> c.outputText().stream()).map(t -> t.text()).collect(Collectors.joining());
         var parsed = SemanticTourV3Codec.readModel(text, jsonMapper);
-        var endings = SemanticEndingReconciler.reconcile(parsed.bookings());
+        var endings = ActivityEndingReconciler.reconcile(parsed.bookings());
         endings.changes().forEach(change -> org.slf4j.LoggerFactory.getLogger(getClass()).warn(
                 "Ending reconciled to AMBIGUOUS bookingIndex={} meaning={} hadLocation={}",
                 change.bookingIndex(), change.meaning(), change.hadLocation()));

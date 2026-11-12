@@ -30,13 +30,13 @@ public class TourBookingStateService {
     public record ReviewVersion(Long reviewId,long version) {}
     public enum Status { CONFIRMED, CONFIRMED_RESERVATION_DELETED, PENDING_ACTIVE, PENDING_REVIEW, HISTORICAL }
     public record Booking(int bookingIndex,Status status,SemanticFactV3<SemanticBookingLifecycleV3.State> originalLifecycle,
-            LifecycleClarification acceptedLifecycle,SemanticBookingEligibility.Booking eligibility,
+            LifecycleClarification acceptedLifecycle,BookingEligibility.Booking eligibility,
             com.ishita.tripcoordinatorplatform.ai.document.AttractionTourBookingExtraction effectiveBooking,
             java.time.LocalDateTime requiredArrivalLocal,String schedulingBlockCode,Long receiptId,Long historicalReservationId,ReviewVersion acceptedReview) {}
     public record Snapshot(Long documentId,Long extractionId,String extractionSha256,String acceptedStateToken,
             TravelDocumentProcessingStatus documentStatus,List<ReviewVersion> acceptedReviews,List<Booking> bookings) {}
     record Composition(TravelDocumentExtraction extraction,ObjectNode facts,List<Change> changes,
-                       SemanticBookingEligibility.Selection eligibility,List<TourCorrectionReview> accepted,String token) {}
+                       BookingEligibility.Selection eligibility,List<TourCorrectionReview> accepted,String token) {}
     boolean currentV34(String source){var d=new TourExtractionCodec(mapper).decode(source);return d.semanticV3()!=null && SemanticTourExtractionV3.isV34Contract(d.semanticV3().provenance().promptVersion());}
     void requireCurrent(String source){
         policy.requireLegacyExtraction(source);
@@ -81,7 +81,7 @@ public class TourBookingStateService {
     }
     boolean complete(Composition state){
         var done=new HashSet<Integer>();for(var r:receipts.findAllByExtractionIdOrderByOriginalBookingIndexAsc(state.extraction().getId()))done.add(r.getOriginalBookingIndex());
-        return !done.isEmpty() && state.eligibility().bookings().stream().allMatch(b->done.contains(b.bookingIndex()) || b.disposition()==SemanticBookingEligibility.Disposition.HISTORICAL);
+        return !done.isEmpty() && state.eligibility().bookings().stream().allMatch(b->done.contains(b.bookingIndex()) || b.disposition()==BookingEligibility.Disposition.HISTORICAL);
     }
     com.ishita.tripcoordinatorplatform.response.TourBookingPreview preview(TravelDocument doc,Composition state){
         var snapshot=snapshot(doc,state);var invalidated=policy.invalidateV3Derived(state.facts(),TourConfirmationPolicy.correctedFields(state.changes()));var rows=snapshot.bookings().stream().map(b->new com.ishita.tripcoordinatorplatform.response.TourBookingPreview.Booking(b.bookingIndex(),
@@ -105,12 +105,12 @@ public class TourBookingStateService {
             int i=original.bookingIndex();var eligibility=state.eligibility().bookings().get(i);var receipt=history.get(i);var last=lastReview(state,i);
             LifecycleClarification clarification=null;var node=state.facts().path("bookings").get(i).path("lifecycle");
             if(corrected.getOrDefault(i,Set.of()).contains("lifecycle"))clarification=mapper.treeToValue(node,LifecycleClarification.class);
-            Status status=eligibility.disposition()==SemanticBookingEligibility.Disposition.HISTORICAL?Status.HISTORICAL:
-                    eligibility.disposition()==SemanticBookingEligibility.Disposition.ACTIVE_ELIGIBLE?Status.PENDING_ACTIVE:Status.PENDING_REVIEW;
+            Status status=eligibility.disposition()==BookingEligibility.Disposition.HISTORICAL?Status.HISTORICAL:
+                    eligibility.disposition()==BookingEligibility.Disposition.ACTIVE_ELIGIBLE?Status.PENDING_ACTIVE:Status.PENDING_REVIEW;
             if(receipt!=null)status=reservations.existsById(receipt.getReservationId())?Status.CONFIRMED:Status.CONFIRMED_RESERVATION_DELETED;
             var proposal=state.facts().path("bookings").get(i).deepCopy();((ObjectNode)proposal).remove("lifecycle");((ObjectNode)proposal).remove("requiredArrivalLocal");((ObjectNode)proposal).remove("endingLocationChoice");
             java.time.LocalDateTime arrival=null;String block=null;
-            if(receipt==null && eligibility.disposition()==SemanticBookingEligibility.Disposition.ACTIVE_ELIGIBLE)try{
+            if(receipt==null && eligibility.disposition()==BookingEligibility.Disposition.ACTIVE_ELIGIBLE)try{
                 var effective=policy.validateSelected(state.facts(),corrected,Set.of(i));var at=effective.arrivals().get(i);
                 if(at!=null)arrival=java.time.LocalDateTime.ofInstant(at,java.time.ZoneId.of(effective.proposal().bookings().get(i).timezone()));
             }catch(TourCorrectionException invalid){block=invalid.code();}

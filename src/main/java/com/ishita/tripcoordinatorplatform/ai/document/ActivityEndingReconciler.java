@@ -13,13 +13,13 @@ import java.util.List;
  * runs only on new model output (stored extractions stay strictly validated) and leaves every other defect
  * for the validator to reject.
  */
-final class SemanticEndingReconciler {
+final class ActivityEndingReconciler {
     static final String UNCERTAINTY = "Ending meaning and location were inconsistent; clarification needed";
 
     record Change(int bookingIndex, EndingMeaning meaning, boolean hadLocation) {}
     record Result(List<SemanticTourExtractionV3.Booking> bookings, List<Change> changes) {}
 
-    private SemanticEndingReconciler() {}
+    private ActivityEndingReconciler() {}
 
     static Result reconcile(List<SemanticTourExtractionV3.Booking> bookings) {
         if (bookings == null) return new Result(null, List.of());
