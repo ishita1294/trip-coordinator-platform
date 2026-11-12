@@ -97,11 +97,11 @@ public class SourceBookingAcceptedReviewService {
                 throw TourCorrectionException.validation("LIFECYCLE_CONFLICT_ACKNOWLEDGEMENT_REQUIRED","Source conflict needs explicit acknowledgement.");
             declarations.put(c.bookingIndex(),declaration);
         }
-        var states=new HashMap<Integer,SemanticBookingLifecycleV3.State>();declarations.forEach((i,d)->states.put(i,d.state()));
+        var states=new HashMap<Integer,ReadingBookingLifecycle.State>();declarations.forEach((i,d)->states.put(i,d.state()));
         for(var row:base.bookings())for(var link:row.original().replaces())if(link.status()==CLEAR) {
             var prior=base.bookings().get(link.value().bookingIndex()).original().lifecycle();
-            var state=states.getOrDefault(link.value().bookingIndex(),prior.status()==CLEAR?prior.value():SemanticBookingLifecycleV3.State.UNKNOWN);
-            if(states.containsKey(link.value().bookingIndex()) && state!=SemanticBookingLifecycleV3.State.CANCELLED && state!=SemanticBookingLifecycleV3.State.SUPERSEDED)
+            var state=states.getOrDefault(link.value().bookingIndex(),prior.status()==CLEAR?prior.value():ReadingBookingLifecycle.State.UNKNOWN);
+            if(states.containsKey(link.value().bookingIndex()) && state!=ReadingBookingLifecycle.State.CANCELLED && state!=ReadingBookingLifecycle.State.SUPERSEDED)
                 throw TourCorrectionException.validation("INVALID_LIFECYCLE_CLARIFICATION","Established replacement requires an inactive predecessor.");
         }
         var rows=new ArrayList<BookingOverlay>();var effectiveRows=new ArrayList<SourceBookingReview.BookingReview>();var eligible=new ArrayList<Integer>();
@@ -177,9 +177,9 @@ public class SourceBookingAcceptedReviewService {
                 var claims=row.original().schedules().stream().filter(x->x.target()==target&&x.fact().status()!=MISSING).toList();
                 if(claims.size()!=1 || claims.getFirst().fact().status()!=CLEAR)throw unsupportedTemporal();
                 var claim=claims.getFirst();var v=claim.fact().value();
-                if(v.conditionality()!=SemanticAssertionV3.Conditionality.UNCONDITIONAL || row.original().projections().stream().noneMatch(x->x.field()==target))throw unsupportedTemporal();
+                if(v.conditionality()!=ReadingAssertion.Conditionality.UNCONDITIONAL || row.original().projections().stream().noneMatch(x->x.field()==target))throw unsupportedTemporal();
                 boolean arrival=target==Target.REQUIRED_ARRIVAL;
-                if(arrival?v.relation()!=SemanticTemporalConstraintV3.Relation.DEADLINE||!v.upper().inclusive():v.relation()!=SemanticTemporalConstraintV3.Relation.EXACT)throw unsupportedTemporal();
+                if(arrival?v.relation()!=ReadingTimeRule.Relation.DEADLINE||!v.upper().inclusive():v.relation()!=ReadingTimeRule.Relation.EXACT)throw unsupportedTemporal();
                 var moment=arrival?v.upper().moment():v.point();if(moment.literal()==null)throw unsupportedTemporal();
                 for(var node:booking.path("schedules"))if(node.path("id").asText().equals(claim.id())) {
                     var value=node.path("fact").path("value");
@@ -209,7 +209,7 @@ public class SourceBookingAcceptedReviewService {
             case END->{out.put("endDate",mapper.valueToTree(p.moment().date()));out.put("endTime",mapper.valueToTree(p.moment().time()));}
             case REQUIRED_ARRIVAL->out.put("requiredArrivalLocal",mapper.valueToTree(p.moment().toLocalDateTime().toString()));default->{}
         }
-        for(var q:row.deterministic().quantities())if(q.clauseIndex()==null && q.basis()!=SemanticFactV3.TemporalBasis.WALL_CLOCK) {
+        for(var q:row.deterministic().quantities())if(q.clauseIndex()==null && q.basis()!=ReadingFact.TemporalBasis.WALL_CLOCK) {
             if(q.kind()==QuantityKind.DURATION_MINUTES)out.put("durationMinutes",mapper.valueToTree(q.value()));
             if(q.kind()==QuantityKind.ARRIVAL_LEAD_MINUTES)out.put("arrivalLeadMinutes",mapper.valueToTree(q.value()));
         }
@@ -228,7 +228,7 @@ public class SourceBookingAcceptedReviewService {
                 var v=s.fact().value();
                 for(var m:Arrays.asList(v.point(),v.lower()==null?null:v.lower().moment(),v.upper()==null?null:v.upper().moment()))
                     if(m!=null && m.offset()!=null && (changed.contains(m.offset().schedule())
-                            || corrected.contains("timezone") && m.offset().basis()==SemanticFactV3.TemporalBasis.ELAPSED)) {
+                            || corrected.contains("timezone") && m.offset().basis()==ReadingFact.TemporalBasis.ELAPSED)) {
                         changed.add(s.id());again=true;
                         switch(s.target()){case START->{invalidated.add("startDate");invalidated.add("startTime");}
                             case END->{invalidated.add("endDate");invalidated.add("endTime");}
@@ -239,7 +239,7 @@ public class SourceBookingAcceptedReviewService {
         for(var q:booking.quantities())if(q.fact().value()!=null && q.fact().value().difference()!=null) {
             var d=q.fact().value().difference();
             if(changed.contains(d.fromSchedule()) || changed.contains(d.toSchedule())
-                    || corrected.contains("timezone") && d.basis()==SemanticFactV3.TemporalBasis.ELAPSED) {
+                    || corrected.contains("timezone") && d.basis()==ReadingFact.TemporalBasis.ELAPSED) {
                 if(q.kind()==QuantityKind.DURATION_MINUTES)invalidated.add("durationMinutes");
                 if(q.kind()==QuantityKind.ARRIVAL_LEAD_MINUTES)invalidated.add("arrivalLeadMinutes");
             }

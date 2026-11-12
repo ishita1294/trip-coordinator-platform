@@ -1,8 +1,8 @@
 package com.ishita.tripcoordinatorplatform.service;
 
 import com.ishita.tripcoordinatorplatform.ai.document.InvalidDocumentExtractionException;
-import com.ishita.tripcoordinatorplatform.ai.document.SemanticTourExtractionV3Validator;
-import com.ishita.tripcoordinatorplatform.ai.document.SemanticTourExtractionV3;
+import com.ishita.tripcoordinatorplatform.ai.document.TourReadingValidator;
+import com.ishita.tripcoordinatorplatform.ai.document.TourReading;
 import com.ishita.tripcoordinatorplatform.model.TravelDocumentExtraction;
 import com.ishita.tripcoordinatorplatform.model.TravelDocumentType;
 import com.ishita.tripcoordinatorplatform.repository.TravelDocumentExtractionRepository;
@@ -39,14 +39,14 @@ public class DocumentProcessingFinalizationService {
 
     /** Validates original-byte provenance before the existing fenced, immutable insert. */
     @Transactional(timeout = 10)
-    public TravelDocumentProcessingResponse finalizeSemanticV3Document(Long documentId, UUID attemptId,
+    public TravelDocumentProcessingResponse finalizeTourReading(Long documentId, UUID attemptId,
             TravelDocumentType documentType,
-            SemanticTourExtractionV3 result, String expectedSourceSha256) {
+            TourReading result, String expectedSourceSha256) {
         if (!isTour(documentType)) throw new IllegalArgumentException("Semantic output requires an attraction/tour document");
         if (result == null || result.provenance() == null
-                || !SemanticTourExtractionV3.isV34Contract(result.provenance().promptVersion()))
+                || !TourReading.isCurrentContract(result.provenance().promptVersion()))
             throw new InvalidDocumentExtractionException("Expected V3.4 extraction");
-        new SemanticTourExtractionV3Validator().validate(result, expectedSourceSha256);
+        new TourReadingValidator().validate(result, expectedSourceSha256);
         String json = new tools.jackson.databind.json.JsonMapper().writeValueAsString(result);
         if (json.length() > 100_000)
             throw new InvalidDocumentExtractionException("Semantic extraction exceeds existing storage capacity");

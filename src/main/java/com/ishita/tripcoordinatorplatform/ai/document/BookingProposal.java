@@ -8,24 +8,24 @@ import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.Status.
 /** Explicit boundary into existing booking fields. Full source facts remain in the immutable envelope. */
 public record BookingProposal(AttractionTourBookingExtraction booking, LocalDateTime requiredArrivalLocal,
                                       String endingLocationChoice, List<String> unresolvedFields) {
-    public static BookingProposal fromV3(SemanticTourExtractionV3.Booking b,
-            Map<SemanticFactV3.Reference,SemanticTourExtractionV3Validator.Verification> checks) {
+    public static BookingProposal fromReading(TourReading.Booking b,
+            Map<ReadingFact.Reference,TourReadingValidator.Verification> checks) {
         var view=from(authoritativeReading(b,checks));
         // Optional identity details may remain unknown, but scheduling/location contradictions still need review.
         var issues=new ArrayList<>(view.unresolvedFields().stream().filter(f->!Set.of("provider","bookingReference").contains(f)).toList());
         if(b.requiredArrival().status()==CLEAR && !usable(b.requiredArrival(),b.bookingIndex(),BookingFact.Field.REQUIRED_ARRIVAL,checks)
                 && view.booking().arrivalLeadMinutes()==null)issues.add("requiredArrivalLocal");
-        if (!SemanticTemporalConstraintV3.representable(b)) issues.add("temporalConstraints");
+        if (!ReadingTimeRule.representable(b)) issues.add("temporalConstraints");
         return new BookingProposal(view.booking(),view.requiredArrivalLocal(),view.endingLocationChoice(),List.copyOf(issues));
     }
-    public static TourBookingFactsValidator.Timing readingTiming(SemanticTourExtractionV3.Booking b,
-            Map<SemanticFactV3.Reference,SemanticTourExtractionV3Validator.Verification> checks) {
-        if (!SemanticTemporalConstraintV3.representable(b))
+    public static TourBookingFactsValidator.Timing readingTiming(TourReading.Booking b,
+            Map<ReadingFact.Reference,TourReadingValidator.Verification> checks) {
+        if (!ReadingTimeRule.representable(b))
             throw new InvalidDocumentExtractionException("Temporal constraint cannot be flattened into scheduling fields");
         return new TourBookingFactsValidator().timing(authoritativeReading(b,checks));
     }
-    private static TourBookingFacts.Booking authoritativeReading(SemanticTourExtractionV3.Booking b,
-            Map<SemanticFactV3.Reference,SemanticTourExtractionV3Validator.Verification> checks) {
+    private static TourBookingFacts.Booking authoritativeReading(TourReading.Booking b,
+            Map<ReadingFact.Reference,TourReadingValidator.Verification> checks) {
         return new TourBookingFacts.Booking(b.bookingIndex(),safe(b.name(),b,BookingFact.Field.NAME,checks),
                 safe(b.provider(),b,BookingFact.Field.PROVIDER,checks),safe(b.bookingReference(),b,BookingFact.Field.BOOKING_REFERENCE,checks),
                 safe(b.start(),b,BookingFact.Field.START,checks),safe(b.end(),b,BookingFact.Field.END,checks),safe(b.timezone(),b,BookingFact.Field.TIMEZONE,checks),
@@ -33,13 +33,13 @@ public record BookingProposal(AttractionTourBookingExtraction booking, LocalDate
                 safe(b.arrivalLeadMinutes(),b,BookingFact.Field.ARRIVAL_LEAD_MINUTES,checks),safe(b.meetingPoint(),b,BookingFact.Field.MEETING_POINT,checks),
                 safe(b.endingPoint(),b,BookingFact.Field.ENDING_POINT,checks),safe(b.instructions(),b,BookingFact.Field.INSTRUCTIONS,checks),List.of());
     }
-    private static boolean usable(SemanticFactV3<?> f,int index,BookingFact.Field field,
-            Map<SemanticFactV3.Reference,SemanticTourExtractionV3Validator.Verification> checks) {
+    private static boolean usable(ReadingFact<?> f,int index,BookingFact.Field field,
+            Map<ReadingFact.Reference,TourReadingValidator.Verification> checks) {
         return f.interpretation().basis()!=BookingFact.Basis.CALCULATED
-                || checks.get(new SemanticFactV3.Reference(index,field,null))==SemanticTourExtractionV3Validator.Verification.ELAPSED_ARITHMETIC_VERIFIED;
+                || checks.get(new ReadingFact.Reference(index,field,null))==TourReadingValidator.Verification.ELAPSED_ARITHMETIC_VERIFIED;
     }
-    private static <T> BookingFact<T> safe(SemanticFactV3<T> f,SemanticTourExtractionV3.Booking b,BookingFact.Field field,
-            Map<SemanticFactV3.Reference,SemanticTourExtractionV3Validator.Verification> checks) {
+    private static <T> BookingFact<T> safe(ReadingFact<T> f,TourReading.Booking b,BookingFact.Field field,
+            Map<ReadingFact.Reference,TourReadingValidator.Verification> checks) {
         return usable(f,b.bookingIndex(),field,checks)?f.shape():new BookingFact<>(BookingFact.Status.MISSING,null,List.of(),List.of(),
                 "Provisional calculation excluded from authoritative mapping",new BookingFact.Derivation(BookingFact.Basis.NOT_ESTABLISHED,List.of()));
     }

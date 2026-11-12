@@ -79,7 +79,7 @@ public class AttractionTourDocumentConfirmationService {
         if(new com.ishita.tripcoordinatorplatform.ai.document.TourExtractionCodec(jsonMapper).schemaVersion(extraction.getExtractedData())==3
                 && (request==null || !extraction.getId().equals(request.extractionId())))
             throw TourCorrectionException.stale("Identify the exact v3 extraction being confirmed.");
-        boolean partial=bookingState!=null && bookingState.currentV34(extraction.getExtractedData());
+        boolean partial=bookingState!=null && bookingState.currentReading(extraction.getExtractedData());
         java.util.Set<Integer> selected=null;TourBookingStateService.Composition partialState=null;
         if(partial){
             var requested=request.selectedBookingIndexes();

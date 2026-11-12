@@ -4,19 +4,19 @@ import java.util.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.Status.CLEAR;
 
 /** Documentary lifecycle claims, not an application reservation status or confirmation decision. */
-public final class SemanticBookingLifecycleV3 {
-    private SemanticBookingLifecycleV3() {}
+public final class ReadingBookingLifecycle {
+    private ReadingBookingLifecycle() {}
     public enum State { ACTIVE, CANCELLED, SUPERSEDED, PROVISIONAL, UNKNOWN }
     /** The containing booking replaces this index. A printed reference is optional corroboration, never a lookup heuristic. */
     public record BookingAssociation(Integer bookingIndex, String bookingReference) {}
     public static final int MAX_REPLACEMENTS = 16;
 
-    static SemanticFactV3<State> unestablished() {
-        return new SemanticFactV3<>(BookingFact.Status.MISSING,null,List.of(),List.of(),
+    static ReadingFact<State> unestablished() {
+        return new ReadingFact<>(BookingFact.Status.MISSING,null,List.of(),List.of(),
                 "Documentary booking validity was not established by this historical contract",List.of(),
-                new SemanticFactV3.Interpretation(BookingFact.Basis.NOT_ESTABLISHED,List.of(),null));
+                new ReadingFact.Interpretation(BookingFact.Basis.NOT_ESTABLISHED,List.of(),null));
     }
-    static void validate(SemanticTourExtractionV3 extraction, SemanticTourExtractionV3Validator validator) {
+    static void validate(TourReading extraction, TourReadingValidator validator) {
         Map<Integer,List<Integer>> edges=new HashMap<>();
         for(var b:extraction.bookings()) {
             require(b.lifecycle()!=null && b.replaces()!=null,"Lifecycle fact and replacement list are required");
@@ -26,7 +26,7 @@ public final class SemanticBookingLifecycleV3 {
                     "Unknown lifecycle must remain unresolved, never CLEAR");
             require(b.replaces().size()<=MAX_REPLACEMENTS,"Replacement association bound exceeded");
             Set<Integer> selected=new HashSet<>();
-            Set<SemanticFactV3<BookingAssociation>> entries=new HashSet<>();
+            Set<ReadingFact<BookingAssociation>> entries=new HashSet<>();
             for(var f:b.replaces()) {
                 require(f!=null && entries.add(f),"Duplicate replacement fact");
                 validateLocalFact(f,b.bookingIndex(),fields,validator);
@@ -48,7 +48,7 @@ public final class SemanticBookingLifecycleV3 {
         for(int index:edges.keySet())visit(index,edges,new HashSet<>(),done);
     }
     /** Reuse source relationships against separate user declarations; never fabricate AI facts/evidence. */
-    public static void validateEffectiveStates(SemanticTourExtractionV3 extraction,Map<Integer,State> userStates) {
+    public static void validateEffectiveStates(TourReading extraction,Map<Integer,State> userStates) {
         for(var e:userStates.entrySet())require(e.getKey()!=null && e.getKey()>=0 && e.getKey()<extraction.bookings().size()
                 && e.getValue()!=null,"Invalid lifecycle clarification association");
         for(var b:extraction.bookings())for(var relation:b.replaces())if(relation.status()==CLEAR){
@@ -59,14 +59,14 @@ public final class SemanticBookingLifecycleV3 {
                     "Established replacement requires an established inactive predecessor");
         }
     }
-    private static void validateLocalFact(SemanticFactV3<?> f,int index,
-            Map<SemanticFactV3.Reference,SemanticFactV3<?>> fields,SemanticTourExtractionV3Validator validator) {
+    private static void validateLocalFact(ReadingFact<?> f,int index,
+            Map<ReadingFact.Reference,ReadingFact<?>> fields,TourReadingValidator validator) {
         validator.validateFact(f,fields);
         require(f.interpretation().calculation()==null,"Lifecycle and replacement facts are not arithmetic results");
         for(var e:f.evidence())require(e.bookingIndex()!=null && e.bookingIndex()==index,
                 "Lifecycle/replacement evidence must identify the containing booking");
     }
-    private static void validateTarget(BookingAssociation link,SemanticTourExtractionV3.Booking owner,SemanticTourExtractionV3 extraction) {
+    private static void validateTarget(BookingAssociation link,TourReading.Booking owner,TourReading extraction) {
         require(link!=null && link.bookingIndex()!=null && link.bookingIndex()>=0
                         && link.bookingIndex()<extraction.bookings().size() && link.bookingIndex()!=owner.bookingIndex(),
                 "Invalid, dangling or self-referential replacement association");

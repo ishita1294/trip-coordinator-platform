@@ -6,15 +6,15 @@ import java.util.Set;
 import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.Status.CLEAR;
 
 /** Documentary local-time semantics, not a rule engine or a verified scheduling instant. */
-public record SemanticTemporalConstraintV3(Target target, SemanticFactV3<Requirement> fact) {
+public record ReadingTimeRule(Target target, ReadingFact<Requirement> fact) {
     public enum Target { START, END, REQUIRED_ARRIVAL }
     public enum Relation { EXACT, DEADLINE, EARLIEST, WINDOW }
     public record Boundary(TourBookingFacts.LocalMoment moment, Boolean inclusive) {}
     public record Requirement(Relation relation, Boundary lower, Boundary upper,
-            SemanticAssertionV3.Conditionality conditionality, String trigger) {
+            ReadingAssertion.Conditionality conditionality, String trigger) {
         /** Local-domain membership only. Does not resolve timezone, offsets or DST. */
         public boolean permits(LocalDateTime candidate) {
-            if (conditionality != SemanticAssertionV3.Conditionality.UNCONDITIONAL)
+            if (conditionality != ReadingAssertion.Conditionality.UNCONDITIONAL)
                 throw new IllegalStateException("Conditional temporal requirement needs explicit handling");
             return (lower == null || candidate.isAfter(lower.moment().toLocalDateTime())
                     || lower.inclusive() && candidate.equals(lower.moment().toLocalDateTime()))
@@ -22,8 +22,8 @@ public record SemanticTemporalConstraintV3(Target target, SemanticFactV3<Require
                     || upper.inclusive() && candidate.equals(upper.moment().toLocalDateTime()));
         }
     }
-    static void validate(SemanticTourExtractionV3.Booking booking, SemanticTourExtractionV3Validator validator,
-            Map<SemanticFactV3.Reference, SemanticFactV3<?>> fields) {
+    static void validate(TourReading.Booking booking, TourReadingValidator validator,
+            Map<ReadingFact.Reference, ReadingFact<?>> fields) {
         require(booking.temporalConstraints() != null && booking.temporalConstraints().size() <= 12,
                 "Temporal constraints are required and bounded to 12 per booking");
         var targets = new java.util.HashSet<Target>();
@@ -50,10 +50,10 @@ public record SemanticTemporalConstraintV3(Target target, SemanticFactV3<Require
     }
     private static void validateRequirement(Requirement r, boolean clear) {
         require(r != null && r.relation() != null && r.conditionality() != null, "Incomplete temporal requirement");
-        if (r.conditionality() == SemanticAssertionV3.Conditionality.CONDITIONAL)
+        if (r.conditionality() == ReadingAssertion.Conditionality.CONDITIONAL)
             require(r.trigger() != null && !r.trigger().isBlank() && r.trigger().length() <= 400, "Temporal condition needs a trigger");
         else require(r.trigger() == null, "Unexpected temporal trigger");
-        require(!clear || r.conditionality() != SemanticAssertionV3.Conditionality.UNRESOLVED,
+        require(!clear || r.conditionality() != ReadingAssertion.Conditionality.UNRESOLVED,
                 "Unresolved temporal condition cannot be clear");
         for (var b : new Boundary[]{r.lower(), r.upper()}) if (b != null)
             require(b.moment() != null && b.moment().date() != null && b.moment().time() != null && b.inclusive() != null,
@@ -71,14 +71,14 @@ public record SemanticTemporalConstraintV3(Target target, SemanticFactV3<Require
         }
     }
     /** Existing reservation fields support exact start/end and only inclusive mandatory arrival deadlines. */
-    public static boolean representable(SemanticTourExtractionV3.Booking b) {
+    public static boolean representable(TourReading.Booking b) {
         return b.temporalConstraints().stream().allMatch(c -> c.fact().status() == CLEAR
-                && c.fact().value().conditionality() == SemanticAssertionV3.Conditionality.UNCONDITIONAL
+                && c.fact().value().conditionality() == ReadingAssertion.Conditionality.UNCONDITIONAL
                 && (c.target() == Target.REQUIRED_ARRIVAL
                     ? c.fact().value().relation() == Relation.DEADLINE && c.fact().value().upper().inclusive()
                     : c.fact().value().relation() == Relation.EXACT));
     }
-    public static boolean matchesEffective(SemanticTourExtractionV3.Booking b, LocalDateTime start,
+    public static boolean matchesEffective(TourReading.Booking b, LocalDateTime start,
             LocalDateTime end, LocalDateTime arrival) {
         return b.temporalConstraints().stream().allMatch(c -> {
             var r=c.fact().value();
@@ -88,18 +88,18 @@ public record SemanticTemporalConstraintV3(Target target, SemanticFactV3<Require
         });
     }
     /** Corrections cannot erase or shift constraints, nor retain constraints derived from changed operands. */
-    public static boolean correctionCompatible(SemanticTourExtractionV3.Booking b, Set<String> edits) {
+    public static boolean correctionCompatible(TourReading.Booking b, Set<String> edits) {
         if (b.temporalConstraints().isEmpty()) return true; // A booking with no recorded time rules has nothing to protect.
         var temporal = Set.of("startDate","startTime","endDate","endTime","timezone","requiredArrivalLocal","arrivalLeadMinutes","durationMinutes");
         if (edits.stream().anyMatch(temporal::contains)) return false;
         return b.temporalConstraints().stream().noneMatch(c -> {
             var refs = new java.util.ArrayList<>(c.fact().interpretation().dependencies());
-            refs.add(new SemanticFactV3.Reference(b.bookingIndex(), BookingFact.Field.valueOf(c.target().name()), null));
+            refs.add(new ReadingFact.Reference(b.bookingIndex(), BookingFact.Field.valueOf(c.target().name()), null));
             return refs.stream().anyMatch(ref -> affected(ref,b,edits,new java.util.HashSet<>()));
         });
     }
-    private static boolean affected(SemanticFactV3.Reference ref, SemanticTourExtractionV3.Booking b,
-            Set<String> edits, Set<SemanticFactV3.Reference> visited) {
+    private static boolean affected(ReadingFact.Reference ref, TourReading.Booking b,
+            Set<String> edits, Set<ReadingFact.Reference> visited) {
         if (!visited.add(ref)) return false;
         var keys = switch (ref.field()) {
             case START -> Set.of("startDate","startTime"); case END -> Set.of("endDate","endTime");
@@ -109,7 +109,7 @@ public record SemanticTemporalConstraintV3(Target target, SemanticFactV3<Require
             default -> Set.of(ref.field().name().toLowerCase());
         };
         if (keys.stream().anyMatch(edits::contains)) return true;
-        SemanticFactV3<?> f = switch(ref.field()) {
+        ReadingFact<?> f = switch(ref.field()) {
             case START -> b.start(); case END -> b.end(); case REQUIRED_ARRIVAL -> b.requiredArrival();
             case TIMEZONE -> b.timezone(); case DURATION_MINUTES -> b.durationMinutes(); case ARRIVAL_LEAD_MINUTES -> b.arrivalLeadMinutes();
             case NAME -> b.name(); case PROVIDER -> b.provider(); case BOOKING_REFERENCE -> b.bookingReference();

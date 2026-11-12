@@ -4,14 +4,14 @@ import java.util.*;
 import java.util.function.Consumer;
 import tools.jackson.databind.json.JsonMapper;
 import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.*;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFactV3.*;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticAssertionV3.*;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticSupplementalFactV3.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.ReadingFact.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.ReadingAssertion.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.SupplementalReadingFact.*;
 
 /** Structural semantics only: cannot establish whether a model correctly classified the source. */
-final class SemanticAssertionsV3Validator {
+final class ReadingAssertionValidator {
     private static final JsonMapper MAPPER = new JsonMapper();
-    void validateBookingConditions(SemanticTourExtractionV3.Booking b) {
+    void validateBookingConditions(TourReading.Booking b) {
         for (var f : b.conditions()) {
             require(f.interpretation().basis() != Basis.CALCULATED, "Policies require semantic interpretation, not calculation");
             values(f, c -> {
@@ -22,8 +22,8 @@ final class SemanticAssertionsV3Validator {
         }
     }
 
-    void validateSupplemental(SemanticTourExtractionV3 extraction, Map<Reference, SemanticFactV3<?>> allFacts,
-            SemanticTourExtractionV3Validator factValidator) {
+    void validateSupplemental(TourReading extraction, Map<Reference, ReadingFact<?>> allFacts,
+            TourReadingValidator factValidator) {
         var supplemental = extraction.supplementalFacts();
         require(supplemental != null && supplemental.size() <= MAX_FACTS, "Supplemental fact count exceeds limit or is missing");
         optional(extraction.supplementalCoverageWarning(),500,"Supplemental coverage warning");
@@ -35,7 +35,7 @@ final class SemanticAssertionsV3Validator {
             var a = item.applicability(); var f = item.fact();
             applicability(a, extraction.bookings().size());
             var allowed = applicableIndexes(a, extraction.bookings().size());
-            var references = new LinkedHashMap<Reference, SemanticFactV3<?>>();
+            var references = new LinkedHashMap<Reference, ReadingFact<?>>();
             allFacts.forEach((r,v) -> { if (allowed.contains(r.bookingIndex())) references.put(r,v); });
             factValidator.validateFact(f, references);
             require(f.status() != Status.MISSING, "Do not emit absent supplemental facts");
@@ -100,7 +100,7 @@ final class SemanticAssertionsV3Validator {
         if(a.value() != null) add.accept(a.value()); a.alternatives().forEach(add);
         return indexes;
     }
-    private void assertion(SemanticAssertionV3 a, Status status) {
+    private void assertion(ReadingAssertion a, Status status) {
         require(a != null && a.role() != null && a.modality() != null && a.conditionality() != null, "Incomplete semantic assertion");
         bounded(a.description(),500,"Assertion description"); optional(a.qualification(),400,"Assertion qualification");
         boolean correctModality = switch(a.role()) {
@@ -137,7 +137,7 @@ final class SemanticAssertionsV3Validator {
         if(d.text() != null) bounded(d.text(),500,"Supplemental text detail");
     }
     private boolean actionable(Role role) { return role == Role.REQUIREMENT || role == Role.RESTRICTION || role == Role.OPTION || role == Role.POLICY; }
-    private static <T> void values(SemanticFactV3<T> fact, Consumer<T> check) {
+    private static <T> void values(ReadingFact<T> fact, Consumer<T> check) {
         if(fact.value()!=null) check.accept(fact.value()); fact.alternatives().forEach(check);
     }
     private static boolean text(String s) { return s!=null && !s.isBlank(); }

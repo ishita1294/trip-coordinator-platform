@@ -5,8 +5,8 @@ import java.util.List;
 import java.util.Map;
 
 /** Explicit successor schema; v2 schema and executed historical instructions remain unchanged. */
-final class SemanticTourSchemaV3 {
-    private SemanticTourSchemaV3() {}
+final class TourReadingSchema {
+    private TourReadingSchema() {}
     static final String INSTRUCTIONS = """
             Read the entire attached document in one semantic extraction pass using schema v3.
             Connect relevant evidence across headings, tables, sections, notes and references. Interpret
@@ -185,9 +185,9 @@ final class SemanticTourSchemaV3 {
                 "reportedPage", nullable(Map.of("type","integer","minimum",1)))));
         defs.put("reference", object(Map.of("bookingIndex", integer,
                 "field", enumeration(BookingFact.Field.values()), "conditionIndex", nullable(integer))));
-        defs.put("calculation", object(Map.of("operation", enumeration(SemanticFactV3.Operation.values()),
-                "operands", array(ref("reference")), "unit", enumeration(SemanticFactV3.Unit.values()),
-                "temporalBasis", enumeration(SemanticFactV3.TemporalBasis.values()))));
+        defs.put("calculation", object(Map.of("operation", enumeration(ReadingFact.Operation.values()),
+                "operands", array(ref("reference")), "unit", enumeration(ReadingFact.Unit.values()),
+                "temporalBasis", enumeration(ReadingFact.TemporalBasis.values()))));
         defs.remove("derivation");
         defs.put("interpretation", object(Map.of("basis", enumeration(BookingFact.Basis.values()),
                 "dependencies", array(ref("reference")), "calculation", nullable(ref("calculation")))));
@@ -201,15 +201,15 @@ final class SemanticTourSchemaV3 {
         defs.put("semanticInterpretation", object(Map.of("basis",Map.of("type","string","enum",
                         List.of("EXPLICIT","CONTEXT_INTERPRETED","NOT_ESTABLISHED")),
                 "dependencies",array(ref("reference")),"calculation",Map.of("type","null"))));
-        defs.put("detail", object(Map.of("type",enumeration(SemanticAssertionV3.ValueType.values()),
+        defs.put("detail", object(Map.of("type",enumeration(ReadingAssertion.ValueType.values()),
                 "text",nullable(text(500)),"booleanValue",nullable(Map.of("type","boolean")),
                 "quantity",nullable(Map.of("type","number")),"unit",nullable(text(40)),
                 "date",nullable(Map.of("type","string","description","ISO local date YYYY-MM-DD")),
                 "localDateTime",nullable(object(Map.of("date",Map.of("type","string","description","ISO local date YYYY-MM-DD"),
                         "time",Map.of("type","string","description","ISO local time HH:mm:ss; no UTC offset")))))));
-        defs.put("assertion", object(Map.of("role",enumeration(SemanticAssertionV3.Role.values()),
-                "modality",enumeration(SemanticAssertionV3.Modality.values()),
-                "conditionality",enumeration(SemanticAssertionV3.Conditionality.values()),
+        defs.put("assertion", object(Map.of("role",enumeration(ReadingAssertion.Role.values()),
+                "modality",enumeration(ReadingAssertion.Modality.values()),
+                "conditionality",enumeration(ReadingAssertion.Conditionality.values()),
                 "trigger",nullable(text(400)),"description",text(500),"qualification",nullable(text(400)),
                 "detail",nullable(ref("detail")))));
         // Enforce the existing semantic boundary during generation, including alternatives.
@@ -233,26 +233,26 @@ final class SemanticTourSchemaV3 {
                 "bookingAssociation",text(200),"quotation",text(600),"reportedPage",nullable(Map.of("type","integer","minimum",1)))));
         assertionProperties.put("evidence",boundedArray(ref("supplementalEvidence"),1,4));
         defs.put("assertionFact",object(assertionProperties));
-        defs.put("scope",object(Map.of("kind",enumeration(SemanticSupplementalFactV3.ScopeKind.values()),
+        defs.put("scope",object(Map.of("kind",enumeration(SupplementalReadingFact.ScopeKind.values()),
                 "bookingIndexes",array(Map.of("type","integer","minimum",0)))));
         defs.put("applicability",object(Map.of("status",enumeration(BookingFact.Status.values()),
                 "value",nullable(ref("scope")),"alternatives",boundedArray(ref("scope"),0,4),"uncertainty",nullable(text(500)))));
         defs.put("supplementalFact",object(Map.of("applicability",ref("applicability"),"fact",ref("assertionFact"))));
         defs.put("temporalBoundary",object(Map.of("moment",object(Map.of("date",Map.of("type","string"),"time",Map.of("type","string"))),"inclusive",Map.of("type","boolean"))));
-        defs.put("temporalRequirement",object(Map.of("relation",enumeration(SemanticTemporalConstraintV3.Relation.values()),
+        defs.put("temporalRequirement",object(Map.of("relation",enumeration(ReadingTimeRule.Relation.values()),
                 "lower",nullable(ref("temporalBoundary")),"upper",nullable(ref("temporalBoundary")),
-                "conditionality",enumeration(SemanticAssertionV3.Conditionality.values()),"trigger",nullable(text(400)))));
+                "conditionality",enumeration(ReadingAssertion.Conditionality.values()),"trigger",nullable(text(400)))));
         var temporalProperties = new LinkedHashMap<>((Map<String,Object>) ((Map<String,Object>)defs.get("timeFact")).get("properties"));
         temporalProperties.put("value",nullable(ref("temporalRequirement")));
         temporalProperties.put("alternatives",boundedArray(ref("temporalRequirement"),0,4));
         temporalProperties.put("interpretation",ref("semanticInterpretation"));
         defs.put("temporalRequirementFact",object(temporalProperties));
-        defs.put("temporalConstraint",object(Map.of("target",enumeration(SemanticTemporalConstraintV3.Target.values()),"fact",ref("temporalRequirementFact"))));
+        defs.put("temporalConstraint",object(Map.of("target",enumeration(ReadingTimeRule.Target.values()),"fact",ref("temporalRequirementFact"))));
         var bookingProperties = new LinkedHashMap<>((Map<String,Object>) ((Map<String,Object>) ((Map<String,Object>) ((Map<String,Object>)root.get("properties")).get("bookings")).get("items")).get("properties"));
         bookingProperties.put("temporalConstraints",boundedArray(ref("temporalConstraint"),0,12));
         var lifecycleProperties = new LinkedHashMap<>((Map<String,Object>) ((Map<String,Object>)defs.get("textFact")).get("properties"));
-        lifecycleProperties.put("value",nullable(enumeration(SemanticBookingLifecycleV3.State.values())));
-        lifecycleProperties.put("alternatives",boundedArray(enumeration(SemanticBookingLifecycleV3.State.values()),0,5));
+        lifecycleProperties.put("value",nullable(enumeration(ReadingBookingLifecycle.State.values())));
+        lifecycleProperties.put("alternatives",boundedArray(enumeration(ReadingBookingLifecycle.State.values()),0,5));
         lifecycleProperties.put("interpretation",ref("semanticInterpretation"));
         defs.put("lifecycleFact",object(lifecycleProperties));
         defs.put("bookingAssociation",object(Map.of("bookingIndex",Map.of("type","integer","minimum",0),
@@ -262,12 +262,12 @@ final class SemanticTourSchemaV3 {
         associationProperties.put("alternatives",boundedArray(ref("bookingAssociation"),0,16));
         defs.put("replacementFact",object(associationProperties));
         bookingProperties.put("lifecycle",ref("lifecycleFact"));
-        bookingProperties.put("replaces",boundedArray(ref("replacementFact"),0,SemanticBookingLifecycleV3.MAX_REPLACEMENTS));
+        bookingProperties.put("replaces",boundedArray(ref("replacementFact"),0,ReadingBookingLifecycle.MAX_REPLACEMENTS));
 
         var properties = new LinkedHashMap<>((Map<String,Object>) root.get("properties"));
         properties.put("bookings",array(object(bookingProperties)));
         properties.put("schemaVersion", Map.of("type", "integer", "enum", List.of(3)));
-        properties.put("supplementalFacts",boundedArray(ref("supplementalFact"),0,SemanticSupplementalFactV3.MAX_FACTS));
+        properties.put("supplementalFacts",boundedArray(ref("supplementalFact"),0,SupplementalReadingFact.MAX_FACTS));
         properties.put("supplementalCoverageWarning",nullable(text(500)));
         root.put("properties", properties); root.put("required",List.copyOf(properties.keySet())); root.put("$defs", defs);
         return root;

@@ -159,7 +159,7 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
         // Only the production V3.4 tour request is eligible. Classification, correction
         // assessment and other output schemas retain their existing tier settings.
         boolean requestFast = fastProcessingEnabled
-                && SemanticTourExtractionV3.STRUCTURED_OUTPUT_NAME.equals(schemaName);
+                && TourReading.STRUCTURED_OUTPUT_NAME.equals(schemaName);
         boolean requestStandard=SourceBookingExtraction.OUTPUT_NAME.equals(schemaName);
         if (requestFast) paramsBuilder.serviceTier(ResponseCreateParams.ServiceTier.FAST);
         if (requestStandard) paramsBuilder.serviceTier(ResponseCreateParams.ServiceTier.DEFAULT);
@@ -196,29 +196,29 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
 
     /** Uses the V3.4 contract selected by the processing job. */
     @Override
-    public SemanticTourExtractionV3 extractSemanticV3(DocumentAiInput document) {
+    public TourReading extractTourReading(DocumentAiInput document) {
         if (document == null || document.content() == null || document.content().length == 0)
             throw new IllegalArgumentException("Document content is required for semantic extraction");
         var source = new DocumentAiInput(document.originalFileName(), document.contentType(), document.content().clone());
         String digest = TourExtractionCodec.sourceSha256(source.content());
         // Read any available text without requiring a text layer for supported scan/image inputs.
         var sourceEvidence = TourSourceEvidenceChecker.read(source);
-        var response = readDocument(source, SemanticTourSchemaV3.INSTRUCTIONS, SemanticTourSchemaV3.schema(),
-                SemanticTourExtractionV3.STRUCTURED_OUTPUT_NAME, null);
+        var response = readDocument(source, TourReadingSchema.INSTRUCTIONS, TourReadingSchema.schema(),
+                TourReading.STRUCTURED_OUTPUT_NAME, null);
         if (response.error().isPresent() || response.incompleteDetails().isPresent()
                 || !response.status().filter(com.openai.models.responses.ResponseStatus.COMPLETED::equals).isPresent())
             throw new InvalidDocumentExtractionException("Semantic extraction response was not completed");
         String text = response.output().stream().flatMap(i -> i.message().stream()).flatMap(m -> m.content().stream())
                 .flatMap(c -> c.outputText().stream()).map(t -> t.text()).collect(Collectors.joining());
-        var parsed = SemanticTourV3Codec.readModel(text, jsonMapper);
+        var parsed = TourReadingCodec.readModel(text, jsonMapper);
         var endings = ActivityEndingReconciler.reconcile(parsed.bookings());
         endings.changes().forEach(change -> org.slf4j.LoggerFactory.getLogger(getClass()).warn(
                 "Ending reconciled to AMBIGUOUS bookingIndex={} meaning={} hadLocation={}",
                 change.bookingIndex(), change.meaning(), change.hadLocation()));
-        var result = new SemanticTourExtractionV3(parsed.schemaVersion(),
-                new TourBookingFacts.Provenance(digest, model, SemanticTourExtractionV3.PROMPT_VERSION,
+        var result = new TourReading(parsed.schemaVersion(),
+                new TourBookingFacts.Provenance(digest, model, TourReading.PROMPT_VERSION,
                         response.id(), java.time.Instant.now()), endings.bookings(), parsed.supplementalFacts(), parsed.supplementalCoverageWarning());
-        new SemanticTourExtractionV3Validator().validate(result, digest);
+        new TourReadingValidator().validate(result, digest);
         var grounding = sourceEvidence.validate(result);
         org.slf4j.LoggerFactory.getLogger(getClass()).info(
                 "Document evidence grounding textMatchedQuotations={} unverifiedQuotations={}",

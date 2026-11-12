@@ -16,7 +16,7 @@ public final class TourExtractionCodec {
         }
     }
     public record Decoded(int schemaVersion, JsonNode original,
-                          AttractionTourExtractionResult legacy, SemanticTourExtractionV3 semanticV3) {}
+                          AttractionTourExtractionResult legacy, TourReading reading) {}
     private final JsonMapper mapper;
     public TourExtractionCodec(JsonMapper mapper) { this.mapper = mapper; }
 
@@ -30,7 +30,7 @@ public final class TourExtractionCodec {
         }
         if (!version.isIntegralNumber() || !version.canConvertToInt()
                 || version.intValue() < 1 || version.intValue() == 2
-                || version.intValue() > SemanticTourExtractionV3.SCHEMA_VERSION) throw invalid();
+                || version.intValue() > TourReading.SCHEMA_VERSION) throw invalid();
         return version.intValue();
     }
 
@@ -48,7 +48,7 @@ public final class TourExtractionCodec {
                 return new Decoded(1, root, legacy, null);
             }
             if (version == 3) {
-                var semantic = SemanticTourV3Codec.readStored(json, mapper,
+                var semantic = TourReadingCodec.readStored(json, mapper,
                         root.path("provenance").path("sourceSha256").asString());
                 return new Decoded(3, root, null, semantic);
             }

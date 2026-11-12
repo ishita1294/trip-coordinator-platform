@@ -10,7 +10,7 @@ public record TravelDocumentExtractionResponse(Long extractionId,
                                                TravelDocumentType documentType,
                                                Instant createdAt,
                                                JsonNode extractedData, java.util.List<com.ishita.tripcoordinatorplatform.intelligence.commitment.ConfirmedArrivalEvidence.Review> arrivalReview,boolean endingLocationReviewSupported,
-                                               SemanticTourReview semanticReview,
+                                               TourReadingReview semanticReview,
                                                @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) com.ishita.tripcoordinatorplatform.ai.document.SourceBookingReview.Review sourceBookingReview,
                                                @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) com.ishita.tripcoordinatorplatform.ai.document.StoredSourceBooking.Provenance sourceBookingProvenance) {
     public TravelDocumentExtractionResponse {
@@ -28,7 +28,7 @@ public record TravelDocumentExtractionResponse(Long extractionId,
                 throw new IllegalArgumentException("Semantic review identity mismatch");
         }
     }
-    public TravelDocumentExtractionResponse(Long extractionId,Long documentId,TravelDocumentType type,Instant createdAt,JsonNode data,java.util.List<com.ishita.tripcoordinatorplatform.intelligence.commitment.ConfirmedArrivalEvidence.Review> arrivals,boolean endingSupported,SemanticTourReview semantic){this(extractionId,documentId,type,createdAt,data,arrivals,endingSupported,semantic,null,null);}
+    public TravelDocumentExtractionResponse(Long extractionId,Long documentId,TravelDocumentType type,Instant createdAt,JsonNode data,java.util.List<com.ishita.tripcoordinatorplatform.intelligence.commitment.ConfirmedArrivalEvidence.Review> arrivals,boolean endingSupported,TourReadingReview semantic){this(extractionId,documentId,type,createdAt,data,arrivals,endingSupported,semantic,null,null);}
     public TravelDocumentExtractionResponse(Long extractionId,Long documentId,TravelDocumentType type,Instant createdAt,JsonNode data,java.util.List<com.ishita.tripcoordinatorplatform.intelligence.commitment.ConfirmedArrivalEvidence.Review> arrivals,boolean endingSupported){this(extractionId,documentId,type,createdAt,data,arrivals,endingSupported,null);}
     public TravelDocumentExtractionResponse(Long extractionId,Long documentId,TravelDocumentType type,Instant createdAt,JsonNode data,java.util.List<com.ishita.tripcoordinatorplatform.intelligence.commitment.ConfirmedArrivalEvidence.Review> arrivals){this(extractionId,documentId,type,createdAt,data,arrivals,true);}
     public TravelDocumentExtractionResponse(Long extractionId,Long documentId,TravelDocumentType type,Instant createdAt,JsonNode extractedData){this(extractionId,documentId,type,createdAt,extractedData,java.util.List.of());}

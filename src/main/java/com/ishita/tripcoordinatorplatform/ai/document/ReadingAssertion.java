@@ -1,7 +1,7 @@
 package com.ishita.tripcoordinatorplatform.ai.document;
 
 /** Meaning is separate from modality and conditionality. No application rules are executed from this record. */
-public record SemanticAssertionV3(Role role, Modality modality, Conditionality conditionality,
+public record ReadingAssertion(Role role, Modality modality, Conditionality conditionality,
         String trigger, String description, String qualification, Detail detail) {
     public enum Role { REQUIREMENT, RESTRICTION, OPTION, POLICY, NOTICE, METADATA, OTHER }
     public enum Modality { REQUIRED, PROHIBITED, PERMITTED, NOT_APPLICABLE }

@@ -19,8 +19,8 @@ public record SourceBookingExtraction(int schemaVersion, String contract, List<S
     }
     public record Booking(int index, Fact<String> name, Fact<String> provider, Fact<String> reference,
             Fact<String> timezone, Fact<DocumentLocation> meetingPoint, Fact<EndingLocation> endingPoint,
-            Fact<SemanticBookingLifecycleV3.State> lifecycle,
-            List<Fact<SemanticBookingLifecycleV3.BookingAssociation>> replaces,
+            Fact<ReadingBookingLifecycle.State> lifecycle,
+            List<Fact<ReadingBookingLifecycle.BookingAssociation>> replaces,
             List<Participant> participants, List<ScheduleClaim> schedules,
             List<Projection> projections, List<Quantity> quantities) {
         public Booking { replaces=copy(replaces); participants=copy(participants); schedules=copy(schedules);
@@ -33,10 +33,10 @@ public record SourceBookingExtraction(int schemaVersion, String contract, List<S
     /** Exactly one literal or declared offset. References are booking-local; equality never implies projection. */
     public record Moment(LocalMoment literal, Offset offset) {}
     public record Offset(String schedule, Edge edge, OffsetOperation operation, int minutes,
-            SemanticFactV3.TemporalBasis basis) {}
+            ReadingFact.TemporalBasis basis) {}
     public record Boundary(Moment moment, boolean inclusive) {}
-    public record ScheduleValue(SemanticTemporalConstraintV3.Relation relation, Moment point,
-            Boundary lower, Boundary upper, SemanticAssertionV3.Conditionality conditionality,
+    public record ScheduleValue(ReadingTimeRule.Relation relation, Moment point,
+            Boundary lower, Boundary upper, ReadingAssertion.Conditionality conditionality,
             List<Integer> conditionSources) {
         public ScheduleValue { conditionSources=copy(conditionSources); }
     }
@@ -57,7 +57,7 @@ public record SourceBookingExtraction(int schemaVersion, String contract, List<S
     public record Projection(Target field, String schedule, Edge edge) {}
     public enum QuantityKind { DURATION_MINUTES, ARRIVAL_LEAD_MINUTES, MINIMUM_AGE_YEARS, CANCELLATION_NOTICE_MINUTES }
     public record Difference(String fromSchedule, Edge fromEdge, String toSchedule, Edge toEdge,
-            SemanticFactV3.TemporalBasis basis) {}
+            ReadingFact.TemporalBasis basis) {}
     /** Exactly one literal or declared MINUTES_BETWEEN; no claimed numeric result accompanies a calculation. */
     public record NumberValue(Integer literal, Difference difference) {}
     public record Quantity(QuantityKind kind, Integer clauseIndex, Fact<NumberValue> fact) {}
@@ -65,7 +65,7 @@ public record SourceBookingExtraction(int schemaVersion, String contract, List<S
     public enum ScopeKind { DOCUMENT, ALL_BOOKINGS, BOOKINGS }
     public record Scope(ScopeKind kind, List<Integer> bookings) { public Scope { bookings=copy(bookings); } }
     /** Text is the referenced quotations, not a generated paraphrase/obligation qualification. */
-    public record Clause(int index, ClauseKind kind, BookingFact.Status status, SemanticAssertionV3.Conditionality conditionality, List<Integer> sources,
+    public record Clause(int index, ClauseKind kind, BookingFact.Status status, ReadingAssertion.Conditionality conditionality, List<Integer> sources,
             Fact<Scope> applicability, List<Integer> conditionSources, List<Integer> qualificationSources,
             String uncertainty) {
         public Clause { sources=copy(sources); conditionSources=copy(conditionSources); qualificationSources=copy(qualificationSources); }

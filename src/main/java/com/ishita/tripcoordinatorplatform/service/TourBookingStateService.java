@@ -29,7 +29,7 @@ public class TourBookingStateService {
     }
     public record ReviewVersion(Long reviewId,long version) {}
     public enum Status { CONFIRMED, CONFIRMED_RESERVATION_DELETED, PENDING_ACTIVE, PENDING_REVIEW, HISTORICAL }
-    public record Booking(int bookingIndex,Status status,SemanticFactV3<SemanticBookingLifecycleV3.State> originalLifecycle,
+    public record Booking(int bookingIndex,Status status,ReadingFact<ReadingBookingLifecycle.State> originalLifecycle,
             LifecycleClarification acceptedLifecycle,BookingEligibility.Booking eligibility,
             com.ishita.tripcoordinatorplatform.ai.document.AttractionTourBookingExtraction effectiveBooking,
             java.time.LocalDateTime requiredArrivalLocal,String schedulingBlockCode,Long receiptId,Long historicalReservationId,ReviewVersion acceptedReview) {}
@@ -37,10 +37,10 @@ public class TourBookingStateService {
             TravelDocumentProcessingStatus documentStatus,List<ReviewVersion> acceptedReviews,List<Booking> bookings) {}
     record Composition(TravelDocumentExtraction extraction,ObjectNode facts,List<Change> changes,
                        BookingEligibility.Selection eligibility,List<TourCorrectionReview> accepted,String token) {}
-    boolean currentV34(String source){var d=new TourExtractionCodec(mapper).decode(source);return d.semanticV3()!=null && SemanticTourExtractionV3.isV34Contract(d.semanticV3().provenance().promptVersion());}
+    boolean currentReading(String source){var d=new TourExtractionCodec(mapper).decode(source);return d.reading()!=null && TourReading.isCurrentContract(d.reading().provenance().promptVersion());}
     void requireCurrent(String source){
         policy.requireLegacyExtraction(source);
-        if(!currentV34(source))throw TourCorrectionException.validation("BOOKING_LIFECYCLE_REVIEW_REQUIRED","Partial confirmation requires the exact V3.4 lifecycle contract; historical source remains readable.");
+        if(!currentReading(source))throw TourCorrectionException.validation("BOOKING_LIFECYCLE_REVIEW_REQUIRED","Partial confirmation requires the exact V3.4 lifecycle contract; historical source remains readable.");
     }
     List<TourCorrectionReview> accepted(TravelDocument document,TravelDocumentExtraction extraction){
         return reviews.findAllByDocumentIdOrderByCreatedAtDescIdDesc(document.getId()).stream()
@@ -84,10 +84,10 @@ public class TourBookingStateService {
         return !done.isEmpty() && state.eligibility().bookings().stream().allMatch(b->done.contains(b.bookingIndex()) || b.disposition()==BookingEligibility.Disposition.HISTORICAL);
     }
     com.ishita.tripcoordinatorplatform.response.TourBookingPreview preview(TravelDocument doc,Composition state){
-        var snapshot=snapshot(doc,state);var invalidated=policy.invalidateV3Derived(state.facts(),TourConfirmationPolicy.correctedFields(state.changes()));var rows=snapshot.bookings().stream().map(b->new com.ishita.tripcoordinatorplatform.response.TourBookingPreview.Booking(b.bookingIndex(),
+        var snapshot=snapshot(doc,state);var invalidated=policy.invalidateReadingDerived(state.facts(),TourConfirmationPolicy.correctedFields(state.changes()));var rows=snapshot.bookings().stream().map(b->new com.ishita.tripcoordinatorplatform.response.TourBookingPreview.Booking(b.bookingIndex(),
                 b.effectiveBooking(),b.requiredArrivalLocal(),state.facts().path("bookings").get(b.bookingIndex()).path("endingLocationChoice").asText("UNKNOWN"),invalidated.getOrDefault(b.bookingIndex(),Set.of()),
                 b.status()==Status.PENDING_ACTIVE && b.schedulingBlockCode()==null,b.eligibility(),b.acceptedLifecycle())).toList();
-        return new com.ishita.tripcoordinatorplatform.response.TourBookingPreview(3,new TourExtractionCodec(mapper).decode(state.extraction().getExtractedData()).semanticV3().provenance().promptVersion(),state.extraction().getId(),rows,
+        return new com.ishita.tripcoordinatorplatform.response.TourBookingPreview(3,new TourExtractionCodec(mapper).decode(state.extraction().getExtractedData()).reading().provenance().promptVersion(),state.extraction().getId(),rows,
                 rows.stream().anyMatch(com.ishita.tripcoordinatorplatform.response.TourBookingPreview.Booking::confirmationEligible),null,snapshot.bookings().stream().filter(b->b.status()==Status.PENDING_ACTIVE).allMatch(b->b.schedulingBlockCode()==null));
     }
     @Transactional(readOnly=true)
@@ -98,7 +98,7 @@ public class TourBookingStateService {
         return snapshot(doc,compose(doc,extraction,List.of()));
     }
     Snapshot snapshot(TravelDocument doc,Composition state){
-        var v3=new TourExtractionCodec(mapper).decode(state.extraction().getExtractedData()).semanticV3();
+        var v3=new TourExtractionCodec(mapper).decode(state.extraction().getExtractedData()).reading();
         var history=new HashMap<Integer,BookingConfirmationReceipt>();for(var r:receipts.findAllByExtractionIdOrderByOriginalBookingIndexAsc(state.extraction().getId()))history.put(r.getOriginalBookingIndex(),r);
         var rows=new ArrayList<Booking>();var corrected=TourConfirmationPolicy.correctedFields(state.changes());
         for(var original:v3.bookings()){

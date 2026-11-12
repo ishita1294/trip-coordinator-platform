@@ -6,14 +6,14 @@ import tools.jackson.databind.MapperFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 /** Strict v3 reader for explicit review dispatch; production extraction/confirmation remain disabled. */
-final class SemanticTourV3Codec {
-    private SemanticTourV3Codec() {}
-    static SemanticTourExtractionV3.ModelOutput readModel(String json, JsonMapper mapper) {
-        return read(json, mapper, SemanticTourExtractionV3.ModelOutput.class);
+final class TourReadingCodec {
+    private TourReadingCodec() {}
+    static TourReading.ModelOutput readModel(String json, JsonMapper mapper) {
+        return read(json, mapper, TourReading.ModelOutput.class);
     }
-    static SemanticTourExtractionV3 readStored(String json, JsonMapper mapper, String expectedSourceSha256) {
-        var result = read(json, mapper, SemanticTourExtractionV3.class);
-        new SemanticTourExtractionV3Validator().validate(result, expectedSourceSha256);
+    static TourReading readStored(String json, JsonMapper mapper, String expectedSourceSha256) {
+        var result = read(json, mapper, TourReading.class);
+        new TourReadingValidator().validate(result, expectedSourceSha256);
         return result;
     }
     private static <T> T read(String json, JsonMapper mapper, Class<T> type) {
@@ -21,7 +21,7 @@ final class SemanticTourV3Codec {
             // Duplicate-tree-key detection applies to tree parsing, not direct record binding.
             var tree = mapper.reader().with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS,
                     DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY).readTree(json);
-            if (type == SemanticTourExtractionV3.class && !SemanticTourExtractionV3.READABLE_PROMPT_VERSIONS.contains(tree.path("provenance").path("promptVersion").asText("")))
+            if (type == TourReading.class && !TourReading.READABLE_PROMPT_VERSIONS.contains(tree.path("provenance").path("promptVersion").asText("")))
                 throw new InvalidDocumentExtractionException("Semantic source/provenance mismatch");
             var result = mapper.rebuild().disable(MapperFeature.ALLOW_COERCION_OF_SCALARS).build().readerFor(type)
                     .with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
