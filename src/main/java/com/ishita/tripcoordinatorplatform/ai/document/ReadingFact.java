@@ -4,9 +4,9 @@ import java.util.List;
 import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.*;
 
 /** Untrusted AI claims. Verification of a calculation is returned by Java, never asserted by the model. */
-public record SemanticFactV3<T>(Status status, T value, List<T> alternatives, List<SourceEvidence> evidence,
+public record ReadingFact<T>(Status status, T value, List<T> alternatives, List<SourceEvidence> evidence,
         String uncertainty, List<String> sourceExpressions, Interpretation interpretation) {
-    public SemanticFactV3 {
+    public ReadingFact {
         alternatives = alternatives == null ? null : List.copyOf(alternatives);
         evidence = evidence == null ? null : List.copyOf(evidence);
         sourceExpressions = sourceExpressions == null ? null : List.copyOf(sourceExpressions);

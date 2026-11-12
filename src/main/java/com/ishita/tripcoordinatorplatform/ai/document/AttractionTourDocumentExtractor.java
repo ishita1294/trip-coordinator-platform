@@ -8,7 +8,7 @@ public interface AttractionTourDocumentExtractor {
     }
 
     /** Extracts the current semantic contract when the processing job explicitly selects it. */
-    default SemanticTourExtractionV3 extractSemanticV3(DocumentAiInput document) {
+    default TourReading extractTourReading(DocumentAiInput document) {
         throw new UnsupportedOperationException(
                 "The configured adapter does not support V3.4 extraction");
     }

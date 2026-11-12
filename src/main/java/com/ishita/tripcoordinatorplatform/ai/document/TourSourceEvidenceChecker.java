@@ -82,9 +82,9 @@ final class TourSourceEvidenceChecker {
     }
 
     /** Structural validation runs first. Counts are diagnostic only, never persisted as evidence truth. */
-    Grounding validate(SemanticTourExtractionV3 extraction) {
-        var validator = new SemanticTourExtractionV3Validator();
-        var evidence = new ArrayList<SemanticFactV3.SourceEvidence>();
+    Grounding validate(TourReading extraction) {
+        var validator = new TourReadingValidator();
+        var evidence = new ArrayList<ReadingFact.SourceEvidence>();
         for (var booking : extraction.bookings()) {
             validator.fields(booking).values().forEach(fact -> evidence.addAll(fact.evidence()));
             evidence.addAll(booking.lifecycle().evidence());
@@ -98,7 +98,7 @@ final class TourSourceEvidenceChecker {
         return new Grounding(matched, evidence.size() - matched);
     }
 
-    QuotationCheck validateQuotation(SemanticFactV3.SourceEvidence evidence) {
+    QuotationCheck validateQuotation(ReadingFact.SourceEvidence evidence) {
         if (evidence == null || evidence.quotation() == null || normalize(evidence.quotation()).isEmpty())
             throw new InvalidDocumentExtractionException("Source quotation is missing");
         String quotation = normalize(evidence.quotation());

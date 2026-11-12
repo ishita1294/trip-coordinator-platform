@@ -18,7 +18,7 @@ public class TourConfirmationPolicy {
     static final Set<String> FIELDS=Set.of("name","provider","bookingReference","startDate","startTime","endDate","endTime",
             "durationMinutes","timezone","meetingPoint","endingPoint","endingLocationChoice","arrivalLeadMinutes","requiredArrivalLocal","lifecycle");
     private final JsonMapper mapper;
-    private final boolean semanticV3WorkflowEnabled;
+    private final boolean readingWorkflowEnabled;
     @org.springframework.beans.factory.annotation.Autowired
     public TourConfirmationPolicy(JsonMapper mapper, org.springframework.core.env.Environment environment) {
         this(mapper,environment.getProperty("app.document-intelligence.v3.workflow-enabled",Boolean.class,false));
@@ -26,11 +26,11 @@ public class TourConfirmationPolicy {
     // Direct construction stays disabled unless a test explicitly enables a semantic workflow.
     public TourConfirmationPolicy(JsonMapper mapper){this(mapper,false);}
     // Shared initialization for configured V3 operation and explicit test wiring.
-    TourConfirmationPolicy(JsonMapper mapper,boolean v3Enabled){this.mapper=mapper;this.semanticV3WorkflowEnabled=v3Enabled;}
-    boolean semanticV3WorkflowEnabled(){return semanticV3WorkflowEnabled;}
+    TourConfirmationPolicy(JsonMapper mapper,boolean v3Enabled){this.mapper=mapper;this.readingWorkflowEnabled=v3Enabled;}
+    boolean readingWorkflowEnabled(){return readingWorkflowEnabled;}
     public void requireMatchingSource(String json,String actualSha256){
         var decoded=new TourExtractionCodec(mapper).decode(json);
-        if(decoded.semanticV3()!=null && !decoded.semanticV3().provenance().sourceSha256().equals(actualSha256))
+        if(decoded.reading()!=null && !decoded.reading().provenance().sourceSha256().equals(actualSha256))
             throw TourCorrectionException.stale("Original source no longer matches the semantic extraction.");
     }
     public void requireLegacyExtraction(String json){
@@ -39,13 +39,13 @@ public class TourConfirmationPolicy {
 
         try {
             int version=new TourExtractionCodec(mapper).schemaVersion(json);
-            if(version==3 && !semanticV3WorkflowEnabled)
+            if(version==3 && !readingWorkflowEnabled)
                 throw invalid("SEMANTIC_CONFIRMATION_NOT_ENABLED","Semantic extraction is available for read-only review; confirmation and corrections are not enabled.");
         } catch(InvalidDocumentExtractionException malformed){throw invalid("SOURCE_PROPOSAL_INVALID","The stored proposal has an invalid or unsupported format.");}
     }
     public void requireLifecycleConfirmation(String json){
-        SemanticTourExtractionV3 v3;
-        try{v3=new TourExtractionCodec(mapper).decode(json).semanticV3();}
+        TourReading v3;
+        try{v3=new TourExtractionCodec(mapper).decode(json).reading();}
         catch(InvalidDocumentExtractionException malformed){throw invalid("SOURCE_PROPOSAL_INVALID","The stored proposal has an invalid or unsupported format.");}
         if(v3==null)return;
         var selection=BookingEligibility.assess(v3);
@@ -55,17 +55,17 @@ public class TourConfirmationPolicy {
     public ObjectNode facts(String json){
         requireLegacyExtraction(json);
         var decoded=new TourExtractionCodec(mapper).decode(json);
-        if(decoded.semanticV3()!=null){
+        if(decoded.reading()!=null){
             var root=mapper.createObjectNode();var bookings=root.putArray("bookings");
             root.set("semanticOriginal",decoded.original());
-            var v3=decoded.semanticV3();var checks=new SemanticTourExtractionV3Validator().validate(v3,v3.provenance().sourceSha256());
-            List<BookingProposal> views=v3.bookings().stream().map(b->BookingProposal.fromV3(b,checks.calculations())).toList();
+            var v3=decoded.reading();var checks=new TourReadingValidator().validate(v3,v3.provenance().sourceSha256());
+            List<BookingProposal> views=v3.bookings().stream().map(b->BookingProposal.fromReading(b,checks.calculations())).toList();
             for(int index=0;index<views.size();index++){
                 var view=views.get(index);
                 ObjectNode booking=mapper.valueToTree(view.booking());
                 booking.put("requiredArrivalLocal",view.requiredArrivalLocal()==null?null:view.requiredArrivalLocal().toString());
                 booking.put("endingLocationChoice",view.endingLocationChoice());
-                if(decoded.semanticV3()!=null)booking.set("lifecycle",mapper.valueToTree(decoded.semanticV3().bookings().get(index).lifecycle()));
+                if(decoded.reading()!=null)booking.set("lifecycle",mapper.valueToTree(decoded.reading().bookings().get(index).lifecycle()));
                 bookings.add(booking);
             }
             return root;
@@ -104,12 +104,12 @@ public class TourConfirmationPolicy {
         if(changes==null || changes.isEmpty() || !combined && changes.size()>32)throw TourCorrectionException.invalid("Supply 1–32 explicit material-field corrections.");
         var facts=facts(original);var seen=new HashSet<String>();
         var v3=facts.has("semanticOriginal") && facts.path("semanticOriginal").path("schemaVersion").asInt()==3
-                ?new TourExtractionCodec(mapper).decode(facts.path("semanticOriginal").toString()).semanticV3():null;
+                ?new TourExtractionCodec(mapper).decode(facts.path("semanticOriginal").toString()).reading():null;
         for(var change:changes){
             if(change==null || change.bookingIndex()==null || change.bookingIndex()<0 || change.bookingIndex()>=facts.path("bookings").size()
                     || !FIELDS.contains(change.field()==null?"":change.field()) || change.originalValue()==null || change.proposedValue()==null
                     || !seen.add(change.bookingIndex()+":"+change.field()))throw TourCorrectionException.invalid("Invalid or duplicate booking field correction.");
-            if(change.field().equals("lifecycle") && (v3==null || !SemanticTourExtractionV3.isV34Contract(v3.provenance().promptVersion())))
+            if(change.field().equals("lifecycle") && (v3==null || !TourReading.isCurrentContract(v3.provenance().promptVersion())))
                 throw invalid("INVALID_LIFECYCLE_CLARIFICATION","Lifecycle clarification requires the exact V3.4 contract.");
             JsonNode old=facts.path("bookings").get(change.bookingIndex()).path(change.field());
             if(old.isMissingNode())old=mapper.nullNode();
@@ -117,26 +117,26 @@ public class TourConfirmationPolicy {
             if(canonicalOriginal(change.field(),old).equals(canonicalOriginal(change.field(),change.proposedValue())))throw TourCorrectionException.invalid("Unchanged values are confirmation, not corrections.");
         }
         for(var c:changes)((ObjectNode)facts.path("bookings").get(c.bookingIndex())).set(c.field(),c.proposedValue());
-        if(v3!=null && SemanticTourExtractionV3.isV34Contract(v3.provenance().promptVersion())){
+        if(v3!=null && TourReading.isCurrentContract(v3.provenance().promptVersion())){
             var effectiveEligibility=lifecycleSelection(v3,clarifications(facts,correctedFields(changes)));
             for(var change:changes)if(!combined && !change.field().equals("lifecycle") && effectiveEligibility.bookings().get(change.bookingIndex()).disposition()!=BookingEligibility.Disposition.ACTIVE_ELIGIBLE)
                 throw invalid("BOOKING_NOT_ELIGIBLE","Historical or unresolved validity cannot be changed by an unrelated field correction.");
         }
-        invalidateV3Derived(facts,correctedFields(changes));
+        invalidateReadingDerived(facts,correctedFields(changes));
         return facts;
     }
     public static boolean hasLifecycleClarification(List<Change> changes){return changes!=null && changes.stream().anyMatch(c->c!=null && "lifecycle".equals(c.field()));}
     private Map<Integer,com.ishita.tripcoordinatorplatform.request.TourCorrectionRequest.LifecycleClarification> clarifications(ObjectNode facts,Map<Integer,Set<String>> corrected){
         var result=new HashMap<Integer,com.ishita.tripcoordinatorplatform.request.TourCorrectionRequest.LifecycleClarification>();
         if(!facts.has("semanticOriginal") || facts.path("semanticOriginal").path("schemaVersion").asInt()!=3)return result;
-        var v3=new TourExtractionCodec(mapper).decode(facts.path("semanticOriginal").toString()).semanticV3();
+        var v3=new TourExtractionCodec(mapper).decode(facts.path("semanticOriginal").toString()).reading();
         for(var b:v3.bookings()){
             var node=facts.path("bookings").get(b.bookingIndex()).path("lifecycle");
             if(!corrected.getOrDefault(b.bookingIndex(),Set.of()).contains("lifecycle")){
                 if(!node.equals(mapper.valueToTree(b.lifecycle())))throw invalid("INVALID_LIFECYCLE_CLARIFICATION","Lifecycle changes require an explicit reviewed declaration.");
                 continue;
             }
-            if(!SemanticTourExtractionV3.isV34Contract(v3.provenance().promptVersion()) || !node.isObject() || node.size()!=3
+            if(!TourReading.isCurrentContract(v3.provenance().promptVersion()) || !node.isObject() || node.size()!=3
                     || !node.path("state").isTextual() || !node.path("reason").isTextual() || !node.path("acknowledgeSourceConflict").isBoolean())
                 throw invalid("INVALID_LIFECYCLE_CLARIFICATION","Supply a lifecycle state, explanation and explicit conflict acknowledgement.");
             com.ishita.tripcoordinatorplatform.request.TourCorrectionRequest.LifecycleClarification clarification;
@@ -153,8 +153,8 @@ public class TourConfirmationPolicy {
         lifecycleSelection(v3,result);
         return Map.copyOf(result);
     }
-    private BookingEligibility.Selection lifecycleSelection(SemanticTourExtractionV3 v3,Map<Integer,com.ishita.tripcoordinatorplatform.request.TourCorrectionRequest.LifecycleClarification> declarations){
-        var states=new HashMap<Integer,SemanticBookingLifecycleV3.State>();declarations.forEach((i,c)->states.put(i,c.state()));
+    private BookingEligibility.Selection lifecycleSelection(TourReading v3,Map<Integer,com.ishita.tripcoordinatorplatform.request.TourCorrectionRequest.LifecycleClarification> declarations){
+        var states=new HashMap<Integer,ReadingBookingLifecycle.State>();declarations.forEach((i,c)->states.put(i,c.state()));
         try{return BookingEligibility.assess(v3,states);}
         catch(InvalidDocumentExtractionException contradictory){throw invalid("INVALID_LIFECYCLE_CLARIFICATION",contradictory.getMessage());}
     }
@@ -166,10 +166,10 @@ public class TourConfirmationPolicy {
             Map.entry(BookingFact.Field.ARRIVAL_LEAD_MINUTES,List.of("arrivalLeadMinutes")),Map.entry(BookingFact.Field.MEETING_POINT,List.of("meetingPoint")),
             Map.entry(BookingFact.Field.ENDING_POINT,List.of("endingPoint","endingLocationChoice")),Map.entry(BookingFact.Field.INSTRUCTIONS,List.of("instructions")));
     /** Invalidate transitive arithmetic-derived values in the effective view only, never the original extraction. */
-    Map<Integer,Set<String>> invalidateV3Derived(ObjectNode facts,Map<Integer,Set<String>> corrected){
+    Map<Integer,Set<String>> invalidateReadingDerived(ObjectNode facts,Map<Integer,Set<String>> corrected){
         if(!facts.has("semanticOriginal") || facts.get("semanticOriginal").path("schemaVersion").asInt()!=3)return Map.of();
         var result=new HashMap<Integer,Set<String>>();
-        var original=new TourExtractionCodec(mapper).decode(facts.get("semanticOriginal").toString()).semanticV3();
+        var original=new TourExtractionCodec(mapper).decode(facts.get("semanticOriginal").toString()).reading();
         for(var b:original.bookings()){
             var explicit=corrected.getOrDefault(b.bookingIndex(),Set.of());var changed=EnumSet.noneOf(BookingFact.Field.class);
             V3_FIELDS.forEach((field,keys)->{if(keys.stream().anyMatch(explicit::contains))changed.add(field);});
@@ -199,7 +199,7 @@ public class TourConfirmationPolicy {
     public com.ishita.tripcoordinatorplatform.response.TourBookingPreview preview(String json,List<Change> changes,Long extractionId){
         if(!hasLifecycleClarification(changes))return validatedPreview(json,changes,extractionId);
         var proposed=proposed(json,changes);var declarations=clarifications(proposed,correctedFields(changes));
-        var v3=new TourExtractionCodec(mapper).decode(json).semanticV3();var selection=lifecycleSelection(v3,declarations);
+        var v3=new TourExtractionCodec(mapper).decode(json).reading();var selection=lifecycleSelection(v3,declarations);
         try{return validatedPreview(json,changes,extractionId);}
         catch(TourCorrectionException blocked){
             var rows=new ArrayList<com.ishita.tripcoordinatorplatform.response.TourBookingPreview.Booking>();
@@ -211,9 +211,9 @@ public class TourConfirmationPolicy {
     }
     private com.ishita.tripcoordinatorplatform.response.TourBookingPreview validatedPreview(String json,List<Change> changes,Long extractionId){
         var proposed=proposed(json,changes);var edits=correctedFields(changes);
-        var invalidated=invalidateV3Derived(proposed,edits);var effective=validate(proposed,edits);
+        var invalidated=invalidateReadingDerived(proposed,edits);var effective=validate(proposed,edits);
         var bookings=new ArrayList<com.ishita.tripcoordinatorplatform.response.TourBookingPreview.Booking>();
-        var v3=new TourExtractionCodec(mapper).decode(json).semanticV3();
+        var v3=new TourExtractionCodec(mapper).decode(json).reading();
         var selection=v3==null?null:lifecycleSelection(v3,effective.lifecycleClarifications());
         for(int i=0;i<effective.proposal().bookings().size();i++){
             var b=effective.proposal().bookings().get(i);
@@ -261,7 +261,7 @@ public class TourConfirmationPolicy {
         catch(ArithmeticException invalid){throw invalid("INVALID_BOOKING_TIME","The proposed duration or arrival cannot be represented.");}
     }
     public BookingEligibility.Selection eligibility(ObjectNode facts,Map<Integer,Set<String>> corrected){
-        var source=new TourExtractionCodec(mapper).decode(facts.path("semanticOriginal").toString()).semanticV3();
+        var source=new TourExtractionCodec(mapper).decode(facts.path("semanticOriginal").toString()).reading();
         return lifecycleSelection(source,clarifications(facts,corrected));
     }
     public Effective validateSelected(ObjectNode facts,Map<Integer,Set<String>> corrected,Set<Integer> selected){
@@ -275,8 +275,8 @@ public class TourConfirmationPolicy {
         var declarations=clarifications(facts,corrected);
         var clean=facts.deepCopy();
         boolean semantic=facts.has("semanticOriginal");
-        boolean semanticV3=semantic && facts.get("semanticOriginal").path("schemaVersion").asInt()==3;
-        List<SemanticTourExtractionV3.Booking> temporalBookings=List.of();
+        boolean reading=semantic && facts.get("semanticOriginal").path("schemaVersion").asInt()==3;
+        List<TourReading.Booking> temporalBookings=List.of();
         Set<Integer> confirmationIndexes=new HashSet<>();
         for(int index=0;index<facts.path("bookings").size();index++)confirmationIndexes.add(index);
         boolean lifecycleScoped=false;
@@ -284,20 +284,20 @@ public class TourConfirmationPolicy {
         if(semantic){
             String json=facts.get("semanticOriginal").toString();requireLegacyExtraction(json);
             var original=new TourExtractionCodec(mapper).decode(json);
-            var v3=original.semanticV3();temporalBookings=v3.bookings();
+            var v3=original.reading();temporalBookings=v3.bookings();
             var selection=lifecycleSelection(v3,declarations);
             confirmationIndexes=new HashSet<>(selection.activeIndexes());
-            lifecycleScoped=SemanticTourExtractionV3.isV34Contract(v3.provenance().promptVersion());
+            lifecycleScoped=TourReading.isCurrentContract(v3.provenance().promptVersion());
             if(selected!=null){
                 if(!lifecycleScoped || !confirmationIndexes.containsAll(selected))throw invalid("BOOKING_NOT_ELIGIBLE","Only explicitly selected eligible ACTIVE bookings may be confirmed.");
                 confirmationIndexes=new HashSet<>(selected);
             }
             if(selected==null && lifecycleScoped && !selection.confirmationAllowed())throw invalid(selection.blockCode(),"The entire document remains in review while lifecycle is unresolved/provisional or no active bookings remain.");
-            for (var b : v3.bookings()) if ((!lifecycleScoped || confirmationIndexes.contains(b.bookingIndex())) && (!SemanticTemporalConstraintV3.representable(b)
-                    || !SemanticTemporalConstraintV3.correctionCompatible(b,corrected.getOrDefault(b.bookingIndex(),Set.of()))))
+            for (var b : v3.bookings()) if ((!lifecycleScoped || confirmationIndexes.contains(b.bookingIndex())) && (!ReadingTimeRule.representable(b)
+                    || !ReadingTimeRule.correctionCompatible(b,corrected.getOrDefault(b.bookingIndex(),Set.of()))))
                 throw invalid("TEMPORAL_CONSTRAINT_NOT_REPRESENTABLE","Temporal requirements need compatible scheduling/correction handling; no boundary semantics may be discarded.");
-            var checks=new SemanticTourExtractionV3Validator().validate(v3,v3.provenance().sourceSha256());
-            List<BookingProposal> views=v3.bookings().stream().map(b->BookingProposal.fromV3(b,checks.calculations())).toList();
+            var checks=new TourReadingValidator().validate(v3,v3.provenance().sourceSha256());
+            List<BookingProposal> views=v3.bookings().stream().map(b->BookingProposal.fromReading(b,checks.calculations())).toList();
             for(int index=0;index<views.size();index++)for(String unresolved:views.get(index).unresolvedFields()){
                 if(lifecycleScoped && !confirmationIndexes.contains(index))continue;
                 var edits=corrected.getOrDefault(index,Set.of());
@@ -318,7 +318,7 @@ public class TourConfirmationPolicy {
             if(lifecycleScoped && !confirmationIndexes.contains(i))continue;
             var b=result.bookings().get(i);var explicit=corrected.getOrDefault(i,Set.of());
             if(b==null || b.name()==null || b.name().isBlank() || b.startDate()==null || b.startTime()==null)throw invalid("MISSING_BOOKING_FIELDS","Activity name and start date/time are required.");
-            if(semanticV3 && (b.timezone()==null || !ZoneId.getAvailableZoneIds().contains(b.timezone())))
+            if(reading && (b.timezone()==null || !ZoneId.getAvailableZoneIds().contains(b.timezone())))
                 throw invalid("BOOKING_TIMEZONE_REQUIRED","V3 confirmation requires a supported IANA timezone, including after corrections.");
             for(var location:java.util.stream.Stream.of(b.meetingPoint(),b.endingPoint()).filter(Objects::nonNull).toList()) {
                 if(!location.isCoordinatePairValid() || location.getLatitude()!=null && (location.getLatitude().abs().doubleValue()>90 || location.getLongitude().abs().doubleValue()>180))throw invalid("INVALID_BOOKING_LOCATION","Invalid document location coordinates.");
@@ -347,7 +347,7 @@ public class TourConfirmationPolicy {
                 lead=evidence.leadMinutes();
                 if(lead!=null){requireZone(timing);arrival=timing.startsAt().minusSeconds(lead*60L);}
             }
-            if (semanticV3 && !SemanticTemporalConstraintV3.matchesEffective(temporalBookings.get(i),timing.start(),timing.end(),
+            if (reading && !ReadingTimeRule.matchesEffective(temporalBookings.get(i),timing.start(),timing.end(),
                     arrival==null?null:LocalDateTime.ofInstant(arrival,ZoneId.of(b.timezone()))))
                 throw invalid("TEMPORAL_CONSTRAINT_CONFLICT","Effective timing does not preserve the documented temporal boundary.");
             if(arrival!=null)arrivals.put(i,arrival);

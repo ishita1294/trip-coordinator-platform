@@ -3,28 +3,28 @@ package com.ishita.tripcoordinatorplatform.ai.document;
 import java.time.*;
 import java.util.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.*;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFactV3.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.ReadingFact.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.TourBookingFacts.LocalMoment;
 
 /** Structured validation only. No interpretation of source expressions, evidence or natural language. */
-public final class SemanticTourExtractionV3Validator {
+public final class TourReadingValidator {
     public enum Verification { LOCAL_ARITHMETIC_VERIFIED, ELAPSED_ARITHMETIC_VERIFIED }
     public record Validation(Map<Reference, Verification> calculations) {
         public Validation { calculations = Map.copyOf(calculations); }
     }
 
-    public Validation validate(SemanticTourExtractionV3 extraction, String expectedSourceSha256) {
-        require(extraction != null && extraction.schemaVersion() == SemanticTourExtractionV3.SCHEMA_VERSION,
+    public Validation validate(TourReading extraction, String expectedSourceSha256) {
+        require(extraction != null && extraction.schemaVersion() == TourReading.SCHEMA_VERSION,
                 "Unsupported semantic extraction version");
         var p = extraction.provenance();
         require(p != null && p.sourceSha256() != null && p.sourceSha256().matches("[a-f0-9]{64}")
                 && p.sourceSha256().equals(expectedSourceSha256) && text(p.model())
-                && SemanticTourExtractionV3.READABLE_PROMPT_VERSIONS.contains(p.promptVersion())
+                && TourReading.READABLE_PROMPT_VERSIONS.contains(p.promptVersion())
                 && text(p.providerResponseId()) && p.extractedAt() != null, "Semantic source/provenance mismatch");
         require(extraction.bookings() != null && !extraction.bookings().isEmpty(), "Semantic bookings are required");
         var verified = new LinkedHashMap<Reference, Verification>();
-        var allFacts = new LinkedHashMap<Reference, SemanticFactV3<?>>();
-        var assertions = new SemanticAssertionsV3Validator();
+        var allFacts = new LinkedHashMap<Reference, ReadingFact<?>>();
+        var assertions = new ReadingAssertionValidator();
         for (int i = 0; i < extraction.bookings().size(); i++) {
             var b = extraction.bookings().get(i);
             require(b != null && b.bookingIndex() == i && b.conditions() != null, "Booking order/identity mismatch");
@@ -50,18 +50,18 @@ public final class SemanticTourExtractionV3Validator {
                     catch (InvalidDocumentExtractionException e) { throw at(entry.getKey(), e); }
                 }
             }
-            SemanticTemporalConstraintV3.validate(b, this, facts);
+            ReadingTimeRule.validate(b, this, facts);
             if (b.requiredArrival().status() == Status.CLEAR || b.arrivalLeadMinutes().status() == Status.CLEAR)
-                require(b.temporalConstraints().stream().anyMatch(c -> c.target() == SemanticTemporalConstraintV3.Target.REQUIRED_ARRIVAL),
+                require(b.temporalConstraints().stream().anyMatch(c -> c.target() == ReadingTimeRule.Target.REQUIRED_ARRIVAL),
                         "Arrival semantics must be stated explicitly");
             consistency(b);
         }
-        SemanticBookingLifecycleV3.validate(extraction,this);
+        ReadingBookingLifecycle.validate(extraction,this);
         assertions.validateSupplemental(extraction, allFacts, this);
         return new Validation(verified);
     }
 
-    void validateFact(SemanticFactV3<?> f, Map<Reference, SemanticFactV3<?>> facts) {
+    void validateFact(ReadingFact<?> f, Map<Reference, ReadingFact<?>> facts) {
         require(f != null && f.status() != null && f.interpretation() != null
                 && f.interpretation().basis() != null && f.interpretation().dependencies() != null
                 && f.sourceExpressions() != null && f.alternatives() != null && f.evidence() != null, "Incomplete semantic fact");
@@ -102,7 +102,7 @@ public final class SemanticTourExtractionV3Validator {
         }
     }
 
-    private void visit(Reference ref, Map<Reference, SemanticFactV3<?>> facts, Set<Reference> path, Set<Reference> done) {
+    private void visit(Reference ref, Map<Reference, ReadingFact<?>> facts, Set<Reference> path, Set<Reference> done) {
         if (done.contains(ref)) return;
         require(path.add(ref), "Cyclic semantic reference at " + ref);
         var d = facts.get(ref).interpretation();
@@ -111,8 +111,8 @@ public final class SemanticTourExtractionV3Validator {
         path.remove(ref); done.add(ref);
     }
 
-    private Verification calculate(Reference target, SemanticFactV3<?> fact,
-            Map<Reference, SemanticFactV3<?>> facts, SemanticTourExtractionV3.Booking b) {
+    private Verification calculate(Reference target, ReadingFact<?> fact,
+            Map<Reference, ReadingFact<?>> facts, TourReading.Booking b) {
         var c = fact.interpretation().calculation();
         var a = c.operands().get(0); var z = c.operands().get(1);
         require(a.conditionIndex() == null && z.conditionIndex() == null && target.conditionIndex() == null,
@@ -167,24 +167,24 @@ public final class SemanticTourExtractionV3Validator {
     }
 
     /** Preserve explicit local facts, but never choose an arbitrary offset for an unresolved instant. */
-    private Instant instant(LocalDateTime local, SemanticTourExtractionV3.Booking b) {
+    private Instant instant(LocalDateTime local, TourReading.Booking b) {
         if (local == null || b.timezone().status() != Status.CLEAR) return null;
         var offsets = ZoneId.of(b.timezone().value()).getRules().getValidOffsets(local);
         return offsets.size() == 1 ? local.toInstant(offsets.getFirst()) : null;
     }
-    private Instant requiredInstant(LocalDateTime local, SemanticTourExtractionV3.Booking b) {
+    private Instant requiredInstant(LocalDateTime local, TourReading.Booking b) {
         var instant = instant(local, b);
         require(instant != null, "Elapsed arithmetic lacks a uniquely resolvable instant");
         return instant;
     }
-    private LocalDateTime local(SemanticFactV3<LocalMoment> f) {
+    private LocalDateTime local(ReadingFact<LocalMoment> f) {
         return f.status() == Status.CLEAR ? f.value().toLocalDateTime() : null;
     }
-    private boolean provisional(SemanticFactV3<?> f) {
+    private boolean provisional(ReadingFact<?> f) {
         var c = f.interpretation().calculation();
         return c != null && c.temporalBasis() == TemporalBasis.WALL_CLOCK;
     }
-    private boolean hasLocalCalculation(Reference ref, Map<Reference, SemanticFactV3<?>> facts) {
+    private boolean hasLocalCalculation(Reference ref, Map<Reference, ReadingFact<?>> facts) {
         var f = facts.get(ref);
         if (provisional(f)) return true;
         var c = f.interpretation().calculation();
@@ -194,7 +194,7 @@ public final class SemanticTourExtractionV3Validator {
     private void canonicalZone(String value) {
         require(ZoneId.getAvailableZoneIds().contains(value), "Timezone must be a supported IANA identifier, not a raw expression or offset");
     }
-    private void consistency(SemanticTourExtractionV3.Booking b) {
+    private void consistency(TourReading.Booking b) {
         var start = local(b.start()); var end = local(b.end()); var arrival = local(b.requiredArrival());
         if (start != null && end != null) require(end.isAfter(start), "End must follow start");
         if (start != null && arrival != null) require(!arrival.isAfter(start), "Arrival must not follow start");
@@ -212,8 +212,8 @@ public final class SemanticTourExtractionV3Validator {
                 require(si.minusSeconds(b.arrivalLeadMinutes().value().longValue() * 60).equals(ai), "Arrival/lead conflict");
         }
     }
-    Map<Reference, SemanticFactV3<?>> fields(SemanticTourExtractionV3.Booking b) {
-        var map = new LinkedHashMap<Reference, SemanticFactV3<?>>();
+    Map<Reference, ReadingFact<?>> fields(TourReading.Booking b) {
+        var map = new LinkedHashMap<Reference, ReadingFact<?>>();
         put(map,b,Field.NAME,b.name()); put(map,b,Field.PROVIDER,b.provider()); put(map,b,Field.BOOKING_REFERENCE,b.bookingReference());
         put(map,b,Field.START,b.start()); put(map,b,Field.END,b.end()); put(map,b,Field.TIMEZONE,b.timezone());
         put(map,b,Field.DURATION_MINUTES,b.durationMinutes()); put(map,b,Field.REQUIRED_ARRIVAL,b.requiredArrival());
@@ -222,7 +222,7 @@ public final class SemanticTourExtractionV3Validator {
         for (int i=0; i<b.conditions().size(); i++) map.put(new Reference(b.bookingIndex(),Field.CONDITIONS,i),b.conditions().get(i));
         return map;
     }
-    private void put(Map<Reference, SemanticFactV3<?>> map, SemanticTourExtractionV3.Booking b, Field f, SemanticFactV3<?> v) {
+    private void put(Map<Reference, ReadingFact<?>> map, TourReading.Booking b, Field f, ReadingFact<?> v) {
         map.put(new Reference(b.bookingIndex(),f,null),v);
     }
     private static InvalidDocumentExtractionException at(Reference r, InvalidDocumentExtractionException e) {

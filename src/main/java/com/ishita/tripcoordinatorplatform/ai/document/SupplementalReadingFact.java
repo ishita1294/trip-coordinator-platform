@@ -3,7 +3,7 @@ package com.ishita.tripcoordinatorplatform.ai.document;
 import java.util.List;
 
 /** Shared/document facts are represented once, without implying authoritative domain enforcement. */
-public record SemanticSupplementalFactV3(Applicability applicability, SemanticFactV3<SemanticAssertionV3> fact) {
+public record SupplementalReadingFact(Applicability applicability, ReadingFact<ReadingAssertion> fact) {
     public static final int MAX_FACTS = 24;
     /** Serialized supplemental list only; leaves output headroom for essential booking facts, not a token guarantee. */
     public static final int MAX_SERIALIZED_CHARACTERS = 16_000;

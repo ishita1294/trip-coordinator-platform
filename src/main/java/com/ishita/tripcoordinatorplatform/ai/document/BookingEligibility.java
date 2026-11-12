@@ -7,17 +7,17 @@ import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.Status.
 public final class BookingEligibility {
     private BookingEligibility() {}
     public enum Disposition { ACTIVE_ELIGIBLE, HISTORICAL, REQUIRES_REVIEW }
-    public record Booking(int bookingIndex,Disposition disposition,SemanticBookingLifecycleV3.State lifecycleState,String blockCode) {}
+    public record Booking(int bookingIndex,Disposition disposition,ReadingBookingLifecycle.State lifecycleState,String blockCode) {}
     public record Selection(List<Booking> bookings,List<Integer> activeIndexes,String blockCode) {
         public Selection {bookings=List.copyOf(bookings);activeIndexes=List.copyOf(activeIndexes);}
         public boolean confirmationAllowed(){return blockCode==null;}
     }
-    public static Selection assess(SemanticTourExtractionV3 extraction) {return assess(extraction,Map.of());}
-    public static Selection assess(SemanticTourExtractionV3 extraction,Map<Integer,SemanticBookingLifecycleV3.State> userStates) {
-        SemanticBookingLifecycleV3.validateEffectiveStates(extraction,userStates);
+    public static Selection assess(TourReading extraction) {return assess(extraction,Map.of());}
+    public static Selection assess(TourReading extraction,Map<Integer,ReadingBookingLifecycle.State> userStates) {
+        ReadingBookingLifecycle.validateEffectiveStates(extraction,userStates);
         var rows=new ArrayList<Booking>();var active=new ArrayList<Integer>();boolean pending=false;
         for(var b:extraction.bookings()) {
-            var f=b.lifecycle();var state=userStates.getOrDefault(b.bookingIndex(),f.status()==CLEAR?f.value():SemanticBookingLifecycleV3.State.UNKNOWN);
+            var f=b.lifecycle();var state=userStates.getOrDefault(b.bookingIndex(),f.status()==CLEAR?f.value():ReadingBookingLifecycle.State.UNKNOWN);
             Disposition disposition;String code=null;
             switch(state) {
                 case CANCELLED,SUPERSEDED -> disposition=Disposition.HISTORICAL;

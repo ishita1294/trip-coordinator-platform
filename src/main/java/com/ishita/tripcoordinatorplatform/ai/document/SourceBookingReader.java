@@ -12,10 +12,10 @@ import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.Status.
 /** Explicit reader only. Does not select a worker route, emit V3, persist, or authorize confirmation. */
 public final class SourceBookingReader {
     public record Projected(Target field, TourBookingFacts.LocalMoment moment,
-            SemanticTemporalConstraintV3.Relation relation, boolean inclusive,
+            ReadingTimeRule.Relation relation, boolean inclusive,
             TemporalResolution temporalResolution, Instant instant) {}
     public enum TemporalResolution { UNIQUE_INSTANT, UNRESOLVED_TIMEZONE, DST_GAP, DST_OVERLAP }
-    public record ComputedQuantity(QuantityKind kind, Integer clauseIndex, int value, SemanticFactV3.TemporalBasis basis) {}
+    public record ComputedQuantity(QuantityKind kind, Integer clauseIndex, int value, ReadingFact.TemporalBasis basis) {}
     public record BookingView(int index, List<Projected> projections, List<ComputedQuantity> quantities, List<String> equivalentScheduleIds) {
         public BookingView { projections=List.copyOf(projections); quantities=List.copyOf(quantities); equivalentScheduleIds=List.copyOf(equivalentScheduleIds); }
         public BookingView(int index,List<Projected> projections,List<ComputedQuantity> quantities) {this(index,projections,quantities,List.of());}
@@ -80,10 +80,10 @@ public final class SourceBookingReader {
             require(s.kind()!=ScopeKind.BOOKINGS?s.bookings().isEmpty():!s.bookings().isEmpty(),"Invalid applicability kind");
             for(var i:s.bookings())require(i!=null && i>=0 && i<extraction.bookings().size(),"Unknown applicability target");
         }
-        void condition(SemanticAssertionV3.Conditionality c,List<Integer> refs,boolean clear) {
-            require(c!=null,"Condition decision required");refs(refs,c==SemanticAssertionV3.Conditionality.CONDITIONAL);
-            require(c==SemanticAssertionV3.Conditionality.CONDITIONAL || refs.isEmpty(),"Unexpected condition passage");
-            require(!clear || c!=SemanticAssertionV3.Conditionality.UNRESOLVED,"Unresolved condition cannot be clear");
+        void condition(ReadingAssertion.Conditionality c,List<Integer> refs,boolean clear) {
+            require(c!=null,"Condition decision required");refs(refs,c==ReadingAssertion.Conditionality.CONDITIONAL);
+            require(c==ReadingAssertion.Conditionality.CONDITIONAL || refs.isEmpty(),"Unexpected condition passage");
+            require(!clear || c!=ReadingAssertion.Conditionality.UNRESOLVED,"Unresolved condition cannot be clear");
         }
         Read read() {
             require(extraction!=null && extraction.schemaVersion()==SCHEMA_VERSION && CONTRACT.equals(extraction.contract()),"Wrong source-facts contract");
@@ -94,7 +94,7 @@ public final class SourceBookingReader {
             for(var s:extraction.sources()) {
                 require(s!=null && s.id()>=0 && s.quotation()!=null && !s.quotation().isBlank() && s.quotation().length()<=8000
                         && sources.putIfAbsent(s.id(),s)==null,"Invalid/duplicate source passage");
-                var check=reader.validateQuotation(new SemanticFactV3.SourceEvidence(null,null,s.quotation(),s.page()));
+                var check=reader.validateQuotation(new ReadingFact.SourceEvidence(null,null,s.quotation(),s.page()));
                 if(check==TourSourceEvidenceChecker.QuotationCheck.TEXT_MATCHED)matched++;else unverified++;
             }
             for(int i=0;i<extraction.clauses().size();i++) {
@@ -116,7 +116,7 @@ public final class SourceBookingReader {
                 fact(b.meetingPoint(),this::location);fact(b.endingPoint(),e->{require(e.meaning()!=null,"Missing endpoint meaning");
                     if(e.meaning()==TourBookingFacts.EndingMeaning.DIFFERENT_LOCATION){require(e.location()!=null,"Missing ending location");location(e.location());}
                     else require(e.location()==null,"Unexpected ending address");});
-                fact(b.lifecycle(),s->require(s!=null && (b.lifecycle().status()!=CLEAR || s!=SemanticBookingLifecycleV3.State.UNKNOWN),"Unknown lifecycle is unresolved"));
+                fact(b.lifecycle(),s->require(s!=null && (b.lifecycle().status()!=CLEAR || s!=ReadingBookingLifecycle.State.UNKNOWN),"Unknown lifecycle is unresolved"));
                 bounded(b.replaces(),12);for(var r:b.replaces())fact(r,a->{require(a.bookingIndex()!=null && a.bookingIndex()>=0 && a.bookingIndex()<extraction.bookings().size() && a.bookingIndex()!=b.index(),"Invalid replacement target");
                     var reference=extraction.bookings().get(a.bookingIndex()).reference();
                     if(a.bookingReference()!=null)require(reference!=null && reference.status()==CLEAR && a.bookingReference().equals(reference.value()),"Replacement reference disagrees with its target");});
@@ -131,8 +131,8 @@ public final class SourceBookingReader {
             if(done.contains(i))return;require(path.add(i),"Cyclic replacement relationships");
             for(var r:extraction.bookings().get(i).replaces())if(r.status()==CLEAR) {
                 var target=extraction.bookings().get(r.value().bookingIndex());
-                if(target.lifecycle().status()==CLEAR)require(target.lifecycle().value()==SemanticBookingLifecycleV3.State.CANCELLED
-                        || target.lifecycle().value()==SemanticBookingLifecycleV3.State.SUPERSEDED,"Replacement contradicts target lifecycle");
+                if(target.lifecycle().status()==CLEAR)require(target.lifecycle().value()==ReadingBookingLifecycle.State.CANCELLED
+                        || target.lifecycle().value()==ReadingBookingLifecycle.State.SUPERSEDED,"Replacement contradicts target lifecycle");
                 visit(target.index(),path,done);
             }
             path.remove(i);done.add(i);
@@ -172,9 +172,9 @@ public final class SourceBookingReader {
                     require(primaryClaims(p.field(),equivalent).size()==1 && !equivalent.contains(s.id()),"Competing schedule claims cannot select a scalar");
                     require(s.binding()==null || s.binding().role().status()==CLEAR && s.binding().role().value()==ScheduleRole.ACTIVITY_SCHEDULE,
                             "Unresolved schedule role cannot select a scalar");
-                    var v=s.fact().value();require(v.conditionality()==SemanticAssertionV3.Conditionality.UNCONDITIONAL,"Conditional schedule cannot project a scalar");
-                    require(v.relation()==SemanticTemporalConstraintV3.Relation.EXACT && p.edge()==Edge.POINT
-                            || p.field()==Target.REQUIRED_ARRIVAL && v.relation()==SemanticTemporalConstraintV3.Relation.DEADLINE && p.edge()==Edge.UPPER && v.upper().inclusive(),"Unsafe scalar projection");
+                    var v=s.fact().value();require(v.conditionality()==ReadingAssertion.Conditionality.UNCONDITIONAL,"Conditional schedule cannot project a scalar");
+                    require(v.relation()==ReadingTimeRule.Relation.EXACT && p.edge()==Edge.POINT
+                            || p.field()==Target.REQUIRED_ARRIVAL && v.relation()==ReadingTimeRule.Relation.DEADLINE && p.edge()==Edge.UPPER && v.upper().inclusive(),"Unsafe scalar projection");
                     var moment=resolve(p.schedule(),p.edge());var resolution=TemporalResolution.UNRESOLVED_TIMEZONE;Instant instant=null;
                     if(claimZone(s)!=null) {
                         var offsets=claimZone(s).getRules().getValidOffsets(moment);
@@ -214,10 +214,10 @@ public final class SourceBookingReader {
             void arithmeticScalar(ScheduleClaim s,Edge edge) {
                 require(s.fact()!=null && s.fact().status()==CLEAR,"Unresolved arithmetic operand");
                 var v=s.fact().value();
-                require(v!=null && v.conditionality()==SemanticAssertionV3.Conditionality.UNCONDITIONAL,
+                require(v!=null && v.conditionality()==ReadingAssertion.Conditionality.UNCONDITIONAL,
                         "Conditional arithmetic operand");
-                require(v.relation()==SemanticTemporalConstraintV3.Relation.EXACT && edge==Edge.POINT
-                        || s.target()==Target.REQUIRED_ARRIVAL && v.relation()==SemanticTemporalConstraintV3.Relation.DEADLINE
+                require(v.relation()==ReadingTimeRule.Relation.EXACT && edge==Edge.POINT
+                        || s.target()==Target.REQUIRED_ARRIVAL && v.relation()==ReadingTimeRule.Relation.DEADLINE
                         && edge==Edge.UPPER && v.upper().inclusive(),"Boundary does not establish a scalar arithmetic operand");
                 var equivalent=booking.schedules().stream().filter(this::verifiedEquivalent).map(ScheduleClaim::id).toList();
                 require(primaryClaims(s.target(),equivalent).size()==1 && !equivalent.contains(s.id()),
@@ -231,9 +231,9 @@ public final class SourceBookingReader {
             int difference(Difference d) {
                 var a=resolve(d.fromSchedule(),d.fromEdge());var b=resolve(d.toSchedule(),d.toEdge());
                 var from=schedules.get(d.fromSchedule());var to=schedules.get(d.toSchedule());
-                if(d.basis()==SemanticFactV3.TemporalBasis.WALL_CLOCK && (from.binding()!=null || to.binding()!=null))
+                if(d.basis()==ReadingFact.TemporalBasis.WALL_CLOCK && (from.binding()!=null || to.binding()!=null))
                     require(claimZone(from)!=null && Objects.equals(claimZone(from),claimZone(to)),"Cross-zone wall-clock difference is undefined");
-                var duration=d.basis()==SemanticFactV3.TemporalBasis.WALL_CLOCK?Duration.between(a,b):Duration.between(instant(a,schedules.get(d.fromSchedule())),instant(b,schedules.get(d.toSchedule())));
+                var duration=d.basis()==ReadingFact.TemporalBasis.WALL_CLOCK?Duration.between(a,b):Duration.between(instant(a,schedules.get(d.fromSchedule())),instant(b,schedules.get(d.toSchedule())));
                 require(duration.getNano()==0 && duration.getSeconds()%60==0,"Non-minute arithmetic");return Math.toIntExact(duration.toMinutes());
             }
             void schedule(ScheduleValue v,boolean clear) {
@@ -245,7 +245,7 @@ public final class SourceBookingReader {
                     case WINDOW -> require(v.point()==null && v.lower()!=null && v.upper()!=null,"Window needs independent bounds");
                 }
                 if(v.point()!=null)moment(v.point(),clear);if(v.lower()!=null)moment(v.lower().moment(),clear);if(v.upper()!=null)moment(v.upper().moment(),clear);
-                if(clear && v.relation()==SemanticTemporalConstraintV3.Relation.WINDOW)
+                if(clear && v.relation()==ReadingTimeRule.Relation.WINDOW)
                     require(evaluate(v.lower().moment(),null).isBefore(evaluate(v.upper().moment(),null)),"Window bounds reversed or empty");
             }
             void moment(Moment m,boolean clear) {
@@ -260,7 +260,7 @@ public final class SourceBookingReader {
                 String key=id+":"+edge;require(resolving.add(key),"Cyclic temporal arithmetic");
                 try {
                     var s=schedules.get(id);require(s!=null && edge!=null && s.fact()!=null && s.fact().status()==CLEAR,"Arithmetic requires established schedule operand");
-                    var v=s.fact().value();require(v!=null && v.conditionality()==SemanticAssertionV3.Conditionality.UNCONDITIONAL,"Conditional operand cannot establish a time");
+                    var v=s.fact().value();require(v!=null && v.conditionality()==ReadingAssertion.Conditionality.UNCONDITIONAL,"Conditional operand cannot establish a time");
                     Moment m=switch(edge){case POINT->v.point();case LOWER->v.lower()==null?null:v.lower().moment();case UPPER->v.upper()==null?null:v.upper().moment();};
                     require(m!=null,"Missing arithmetic boundary");return evaluate(m,s);
                 } finally {resolving.remove(key);}
@@ -269,7 +269,7 @@ public final class SourceBookingReader {
                 if(m.literal()!=null){require(m.literal().date()!=null && m.literal().time()!=null,"Incomplete arithmetic operand");return m.literal().toLocalDateTime();}
                 var o=m.offset();var base=resolve(o.schedule(),o.edge());long minutes=o.operation()==OffsetOperation.ADD_MINUTES?o.minutes():-o.minutes();
                 var reference=schedules.get(o.schedule());
-                if(o.basis()==SemanticFactV3.TemporalBasis.WALL_CLOCK) {
+                if(o.basis()==ReadingFact.TemporalBasis.WALL_CLOCK) {
                     if(owner!=null && (owner.binding()!=null || reference.binding()!=null))
                         require(Objects.equals(claimZone(owner),claimZone(reference)) && claimZone(owner)!=null,"Cross-zone wall-clock offset is undefined");
                     return base.plusMinutes(minutes);

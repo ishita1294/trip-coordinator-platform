@@ -46,7 +46,7 @@ public class TourCorrectionService {
                 .orElseThrow(()->new TourCorrectionException(HttpStatus.NOT_FOUND,"SOURCE_PROPOSAL_MISSING","The source proposal is unavailable; reload document review."));
         if(!extraction.getId().equals(request.extractionId()))throw TourCorrectionException.stale("Extraction changed; reload review.");
         policy.requireLegacyExtraction(extraction.getExtractedData());
-        boolean partial=bookingState!=null && bookingState.currentV34(extraction.getExtractedData());
+        boolean partial=bookingState!=null && bookingState.currentReading(extraction.getExtractedData());
         boolean lifecycle=TourConfirmationPolicy.hasLifecycleClarification(request.changes());
         if(request.changes()==null || request.changes().isEmpty() || request.changes().size()>32)throw TourCorrectionException.invalid("Supply 1–32 correction changes.");
         var distinct=new HashSet<String>();for(var change:request.changes())if(change==null || !distinct.add(change.bookingIndex()+":"+change.field()))throw TourCorrectionException.invalid("Invalid or duplicate booking change.");
@@ -91,7 +91,7 @@ public class TourCorrectionService {
     }
     private TourCorrectionReview withPreview(TourCorrectionReview review,String source,List<TourCorrectionRequest.Change> changes){
         if(new TourExtractionCodec(mapper).schemaVersion(source)==3){
-            if(bookingState!=null && bookingState.currentV34(source)){
+            if(bookingState!=null && bookingState.currentReading(source)){
                 var document=documents.findById(review.documentId).orElseThrow();var extraction=extractions.findById(review.extractionId).orElseThrow();
                 review.effectivePreview=bookingState.preview(document,bookingState.compose(document,extraction,changes));
             }else review.effectivePreview=policy.preview(source,changes,review.extractionId);

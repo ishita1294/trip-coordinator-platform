@@ -17,7 +17,7 @@ public final class SourceBookingReview {
     }
     public record ClauseLink(int clauseIndex, Association association) {}
     public record Eligibility(BookingEligibility.Disposition lifecycleDisposition,
-            SemanticBookingLifecycleV3.State lifecycle, boolean reviewReady, List<Issue> issues) {
+            ReadingBookingLifecycle.State lifecycle, boolean reviewReady, List<Issue> issues) {
         public Eligibility { issues=List.copyOf(issues); }
     }
     public record BookingReview(Booking original, SourceBookingReader.BookingView deterministic,
@@ -54,7 +54,7 @@ public final class SourceBookingReview {
         return new Review(SCHEMA_VERSION,CONTRACT,read.sourceSha256(),facts.sources(),clauses,bookings,eligible,
                 facts.coverageWarning(),read.textMatchedSources(),read.unverifiedSources(),false);
     }
-    public static Eligibility reassessLifecycle(Review review,int index,Map<Integer,SemanticBookingLifecycleV3.State> declaredStates) {
+    public static Eligibility reassessLifecycle(Review review,int index,Map<Integer,ReadingBookingLifecycle.State> declaredStates) {
         var facts=new SourceBookingExtraction(SCHEMA_VERSION,CONTRACT,review.sources(),review.bookings().stream().map(BookingReview::original).toList(),
                 review.clauses().stream().map(c->c.original()).toList(),review.coverageWarning());
         var b=review.bookings().get(index);
@@ -83,18 +83,18 @@ public final class SourceBookingReview {
             block(issues,"SEMANTIC_FACT_UNRESOLVED",field);
     }
     private static Eligibility assess(SourceBookingExtraction facts,Booking b,
-            SourceBookingReader.BookingView deterministic,List<ClauseLink> links,Map<Integer,SemanticBookingLifecycleV3.State> declaredStates) {
+            SourceBookingReader.BookingView deterministic,List<ClauseLink> links,Map<Integer,ReadingBookingLifecycle.State> declaredStates) {
         var issues=new ArrayList<Issue>();
-        var state=declaredStates.getOrDefault(b.index(),b.lifecycle().status()==CLEAR?b.lifecycle().value():SemanticBookingLifecycleV3.State.UNKNOWN);
+        var state=declaredStates.getOrDefault(b.index(),b.lifecycle().status()==CLEAR?b.lifecycle().value():ReadingBookingLifecycle.State.UNKNOWN);
         var disposition=switch(state) {case CANCELLED,SUPERSEDED->HISTORICAL;case ACTIVE->ACTIVE_ELIGIBLE;default->REQUIRES_REVIEW;};
         if(disposition==HISTORICAL)block(issues,"BOOKING_HISTORICAL","lifecycle");
         else if(disposition==REQUIRES_REVIEW)block(issues,"BOOKING_LIFECYCLE_UNESTABLISHED","lifecycle");
-        if(state==SemanticBookingLifecycleV3.State.ACTIVE)for(var r:b.replaces()) {
+        if(state==ReadingBookingLifecycle.State.ACTIVE)for(var r:b.replaces()) {
             if(r.status()!=CLEAR)block(issues,"BOOKING_REPLACEMENT_UNRESOLVED","replaces");
             else {
                 var prior=facts.bookings().get(r.value().bookingIndex()).lifecycle();
-                var priorState=declaredStates.getOrDefault(r.value().bookingIndex(),prior.status()==CLEAR?prior.value():SemanticBookingLifecycleV3.State.UNKNOWN);
-                if(priorState!=SemanticBookingLifecycleV3.State.CANCELLED && priorState!=SemanticBookingLifecycleV3.State.SUPERSEDED)
+                var priorState=declaredStates.getOrDefault(r.value().bookingIndex(),prior.status()==CLEAR?prior.value():ReadingBookingLifecycle.State.UNKNOWN);
+                if(priorState!=ReadingBookingLifecycle.State.CANCELLED && priorState!=ReadingBookingLifecycle.State.SUPERSEDED)
                     block(issues,"BOOKING_REPLACEMENT_UNRESOLVED","replaces");
             }
         }
@@ -118,8 +118,8 @@ public final class SourceBookingReview {
             var claim=claims.getFirst();
             if(claim.fact().status()!=CLEAR) {block(issues,"SEMANTIC_FACT_UNRESOLVED",target.name());continue;}
             var value=claim.fact().value();
-            boolean representable=value.conditionality()==SemanticAssertionV3.Conditionality.UNCONDITIONAL
-                    && (target==Target.REQUIRED_ARRIVAL?value.relation()==SemanticTemporalConstraintV3.Relation.DEADLINE && value.upper().inclusive():value.relation()==SemanticTemporalConstraintV3.Relation.EXACT);
+            boolean representable=value.conditionality()==ReadingAssertion.Conditionality.UNCONDITIONAL
+                    && (target==Target.REQUIRED_ARRIVAL?value.relation()==ReadingTimeRule.Relation.DEADLINE && value.upper().inclusive():value.relation()==ReadingTimeRule.Relation.EXACT);
             if(!representable)block(issues,"TEMPORAL_CONSTRAINT_NOT_REPRESENTABLE",target.name());
             var p=projected.get(target);
             if(p==null)block(issues,"SCHEDULE_PROJECTION_REQUIRED",target.name());
@@ -144,7 +144,7 @@ public final class SourceBookingReview {
             for(var q:deterministic.quantities()) {
                 if(q.clauseIndex()!=null || q.kind()!=QuantityKind.DURATION_MINUTES && q.kind()!=QuantityKind.ARRIVAL_LEAD_MINUTES)continue;
                 if(q.kind()==QuantityKind.DURATION_MINUTES && q.value()<=0)block(issues,"INVALID_BOOKING_DURATION","durationMinutes");
-                if(q.basis()==SemanticFactV3.TemporalBasis.WALL_CLOCK) {
+                if(q.basis()==ReadingFact.TemporalBasis.WALL_CLOCK) {
                     issues.add(new Issue("LOCAL_ARITHMETIC_NOT_AUTHORITATIVE",q.kind().name(),false));continue;
                 }
                 if(q.kind()==QuantityKind.DURATION_MINUTES) {
@@ -157,7 +157,7 @@ public final class SourceBookingReview {
         for(var link:links) {
             var c=facts.clauses().get(link.clauseIndex());
             if(link.association()!=Association.DOCUMENT_CONTEXT && critical(c.kind())
-                    && (link.association()==Association.POSSIBLE || c.status()!=CLEAR || c.conditionality()==SemanticAssertionV3.Conditionality.UNRESOLVED))
+                    && (link.association()==Association.POSSIBLE || c.status()!=CLEAR || c.conditionality()==ReadingAssertion.Conditionality.UNRESOLVED))
                 block(issues,"MATERIAL_CLAUSE_REVIEW_REQUIRED","clauses["+c.index()+"]");
         }
         if(facts.coverageWarning()!=null)issues.add(new Issue("SOURCE_COVERAGE_UNCERTAIN","coverageWarning",false));
@@ -168,7 +168,7 @@ public final class SourceBookingReview {
         var s=b.schedules().stream().filter(c->c.id().equals(id)).findFirst().orElseThrow();var value=s.fact().value();
         if(value==null)return false;
         for(var m:Arrays.asList(value.point(),value.lower()==null?null:value.lower().moment(),value.upper()==null?null:value.upper().moment()))
-            if(m!=null && m.offset()!=null && (m.offset().basis()==SemanticFactV3.TemporalBasis.WALL_CLOCK || wallClock(m.offset().schedule(),b,new HashSet<>(visited))))return true;
+            if(m!=null && m.offset()!=null && (m.offset().basis()==ReadingFact.TemporalBasis.WALL_CLOCK || wallClock(m.offset().schedule(),b,new HashSet<>(visited))))return true;
         return false;
     }
     private static void textLimit(List<Issue> issues,Fact<String> f,int max,String field) {
