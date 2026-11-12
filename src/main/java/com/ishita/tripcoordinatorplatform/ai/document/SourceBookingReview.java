@@ -5,7 +5,7 @@ import java.util.*;
 import tools.jackson.databind.json.JsonMapper;
 import static com.ishita.tripcoordinatorplatform.ai.document.SourceBookingExtraction.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.Status.*;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticBookingEligibility.Disposition.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.BookingEligibility.Disposition.*;
 
 /** Inactive read-only consumer. Readiness is not authorization or permission to persist/confirm. */
 public final class SourceBookingReview {
@@ -16,7 +16,7 @@ public final class SourceBookingReview {
         public ClauseView { passages=List.copyOf(passages);conditions=List.copyOf(conditions);qualifications=List.copyOf(qualifications); }
     }
     public record ClauseLink(int clauseIndex, Association association) {}
-    public record Eligibility(SemanticBookingEligibility.Disposition lifecycleDisposition,
+    public record Eligibility(BookingEligibility.Disposition lifecycleDisposition,
             SemanticBookingLifecycleV3.State lifecycle, boolean reviewReady, List<Issue> issues) {
         public Eligibility { issues=List.copyOf(issues); }
     }
@@ -125,7 +125,7 @@ public final class SourceBookingReview {
             if(p==null)block(issues,"SCHEDULE_PROJECTION_REQUIRED",target.name());
             else if(p.temporalResolution()!=SourceBookingReader.TemporalResolution.UNIQUE_INSTANT)
                 block(issues,"AMBIGUOUS_BOOKING_TIME",target.name());
-            // As in authoritativeV3, local arithmetic cannot be promoted to elapsed-authoritative timing.
+            // As in authoritativeReading, local arithmetic cannot be promoted to elapsed-authoritative timing.
             if(wallClock(claim.id(),b,new HashSet<>()))block(issues,"LOCAL_ARITHMETIC_NOT_AUTHORITATIVE",target.name());
         }
         for(var q:b.quantities()) {
