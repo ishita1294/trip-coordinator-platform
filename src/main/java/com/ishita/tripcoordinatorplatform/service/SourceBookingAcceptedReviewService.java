@@ -12,7 +12,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import java.time.*;
 import java.util.*;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.Status.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.Status.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.SourceBookingExtraction.*;
 
 /** Inactive native effective read; no route, AI call or reservation creation. */
@@ -260,8 +260,8 @@ public class SourceBookingAcceptedReviewService {
                 if(d.state()==null || d.reason().isBlank() || d.reason().length()>500)throw new IllegalArgumentException();
             } else if(field.equals("meetingPoint") || field.equals("endingPoint")) {
                 if(!value.isNull()) {
-                    var l=mapper.readerFor(SemanticTourExtraction.DocumentLocation.class).with(tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).readValue(value.toString());
-                    var location=(SemanticTourExtraction.DocumentLocation)l;
+                    var l=mapper.readerFor(TourBookingFacts.DocumentLocation.class).with(tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).readValue(value.toString());
+                    var location=(TourBookingFacts.DocumentLocation)l;
                     if((location.name()==null || location.name().isBlank()) && (location.address()==null || location.address().isBlank()) || location.name()!=null && location.name().length()>255 || location.address()!=null && location.address().length()>1000
                             || (location.latitude()==null)!=(location.longitude()==null) || location.latitude()!=null && (!Double.isFinite(location.latitude()) || !Double.isFinite(location.longitude()) || Math.abs(location.latitude())>90 || Math.abs(location.longitude())>180))throw new IllegalArgumentException();
                 }

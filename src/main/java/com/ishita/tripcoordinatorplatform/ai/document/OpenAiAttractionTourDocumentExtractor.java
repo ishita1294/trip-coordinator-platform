@@ -202,7 +202,7 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
         var source = new DocumentAiInput(document.originalFileName(), document.contentType(), document.content().clone());
         String digest = TourExtractionCodec.sourceSha256(source.content());
         // Read any available text without requiring a text layer for supported scan/image inputs.
-        var sourceEvidence = SemanticTourSourceEvidence.read(source);
+        var sourceEvidence = TourSourceEvidenceChecker.read(source);
         var response = readDocument(source, SemanticTourSchemaV3.INSTRUCTIONS, SemanticTourSchemaV3.schema(),
                 SemanticTourExtractionV3.STRUCTURED_OUTPUT_NAME, null);
         if (response.error().isPresent() || response.incompleteDetails().isPresent()
@@ -216,7 +216,7 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
                 "Ending reconciled to AMBIGUOUS bookingIndex={} meaning={} hadLocation={}",
                 change.bookingIndex(), change.meaning(), change.hadLocation()));
         var result = new SemanticTourExtractionV3(parsed.schemaVersion(),
-                new SemanticTourExtraction.Provenance(digest, model, SemanticTourExtractionV3.PROMPT_VERSION,
+                new TourBookingFacts.Provenance(digest, model, SemanticTourExtractionV3.PROMPT_VERSION,
                         response.id(), java.time.Instant.now()), endings.bookings(), parsed.supplementalFacts(), parsed.supplementalCoverageWarning());
         new SemanticTourExtractionV3Validator().validate(result, digest);
         var grounding = sourceEvidence.validate(result);

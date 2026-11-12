@@ -3,16 +3,16 @@ package com.ishita.tripcoordinatorplatform.ai.document;
 import java.time.*;
 import java.util.*;
 import java.util.function.Consumer;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.*;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticTourExtraction.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.TourBookingFacts.*;
 
 /** Validates structured claims, never interprets quotations or free-text instructions. */
-public final class SemanticTourExtractionValidator {
+public final class TourBookingFactsValidator {
     /** Request-independent arithmetic result, not provider coordinates or verified route evidence. */
     public record Timing(Instant start, Instant end, Instant requiredArrival,
                          boolean endDerived, boolean arrivalDerived) {}
 
-    public void validate(SemanticTourExtraction extraction, String expectedSourceSha256) {
+    public void validate(TourBookingFacts extraction, String expectedSourceSha256) {
         require(extraction != null && extraction.schemaVersion() == SCHEMA_VERSION, "Unsupported semantic extraction version");
         var p = extraction.provenance();
         require(p != null && text(p.sourceSha256()) && p.sourceSha256().matches("[a-f0-9]{64}")
@@ -111,7 +111,7 @@ public final class SemanticTourExtractionValidator {
         if (v.latitude() != null) require(Double.isFinite(v.latitude()) && Double.isFinite(v.longitude())
                 && Math.abs(v.latitude()) <= 90 && Math.abs(v.longitude()) <= 180, "Invalid printed coordinates");
     }
-    private void validateDependencies(Field field, Map<Field, SemanticFact<?>> fields, Set<Field> path) {
+    private void validateDependencies(Field field, Map<Field, BookingFact<?>> fields, Set<Field> path) {
         require(path.add(field), "Circular semantic derivation");
         for (var input : fields.get(field).derivation().inputs()) {
             require(fields.containsKey(input), "Unknown derivation input");
@@ -119,7 +119,7 @@ public final class SemanticTourExtractionValidator {
         }
         path.remove(field);
     }
-    private void validateFact(SemanticFact<?> fact, int index) {
+    private void validateFact(BookingFact<?> fact, int index) {
         require(fact != null && fact.status() != null && fact.alternatives() != null && fact.evidence() != null
                 && fact.derivation() != null && fact.derivation().basis() != null && fact.derivation().inputs() != null,
                 "Incomplete semantic fact");
@@ -140,19 +140,19 @@ public final class SemanticTourExtractionValidator {
                 && text(evidence.bookingAssociation()) && text(evidence.quotation())
                 && (evidence.reportedPage() == null || evidence.reportedPage() > 0), "Evidence booking association is invalid");
     }
-    private Map<Field, SemanticFact<?>> fields(Booking b) {
-        var result = new EnumMap<Field, SemanticFact<?>>(Field.class);
+    private Map<Field, BookingFact<?>> fields(Booking b) {
+        var result = new EnumMap<Field, BookingFact<?>>(Field.class);
         result.put(Field.NAME, b.name()); result.put(Field.PROVIDER, b.provider()); result.put(Field.BOOKING_REFERENCE, b.bookingReference());
         result.put(Field.START, b.start()); result.put(Field.END, b.end()); result.put(Field.TIMEZONE, b.timezone());
         result.put(Field.DURATION_MINUTES, b.durationMinutes()); result.put(Field.REQUIRED_ARRIVAL, b.requiredArrival());
         result.put(Field.ARRIVAL_LEAD_MINUTES, b.arrivalLeadMinutes()); result.put(Field.MEETING_POINT, b.meetingPoint());
         result.put(Field.ENDING_POINT, b.endingPoint()); result.put(Field.INSTRUCTIONS, b.instructions()); return result;
     }
-    private static <T> T clear(SemanticFact<T> f) { return f.status() == Status.CLEAR ? f.value() : null; }
-    private static LocalDateTime clearMoment(SemanticFact<LocalMoment> f) {
+    private static <T> T clear(BookingFact<T> f) { return f.status() == Status.CLEAR ? f.value() : null; }
+    private static LocalDateTime clearMoment(BookingFact<LocalMoment> f) {
         var moment = clear(f); return moment == null ? null : moment.toLocalDateTime();
     }
-    private static <T> void values(SemanticFact<T> f, Consumer<T> check) {
+    private static <T> void values(BookingFact<T> f, Consumer<T> check) {
         if (f.value() != null) check.accept(f.value()); f.alternatives().forEach(check);
     }
     private static boolean text(String v) { return v != null && !v.isBlank(); }

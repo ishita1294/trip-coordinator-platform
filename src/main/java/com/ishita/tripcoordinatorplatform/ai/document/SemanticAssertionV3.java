@@ -9,5 +9,5 @@ public record SemanticAssertionV3(Role role, Modality modality, Conditionality c
     public enum ValueType { TEXT, BOOLEAN, QUANTITY, DATE, LOCAL_DATE_TIME }
     /** Exactly one value slot is populated. Quantity requires a source-established unit. No arbitrary JSON. */
     public record Detail(ValueType type, String text, Boolean booleanValue, Double quantity, String unit,
-            java.time.LocalDate date, SemanticTourExtraction.LocalMoment localDateTime) {}
+            java.time.LocalDate date, TourBookingFacts.LocalMoment localDateTime) {}
 }

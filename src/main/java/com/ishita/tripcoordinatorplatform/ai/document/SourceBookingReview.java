@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.util.*;
 import tools.jackson.databind.json.JsonMapper;
 import static com.ishita.tripcoordinatorplatform.ai.document.SourceBookingExtraction.*;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.Status.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.Status.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.SemanticBookingEligibility.Disposition.*;
 
 /** Inactive read-only consumer. Readiness is not authorization or permission to persist/confirm. */
@@ -103,7 +103,7 @@ public final class SourceBookingReview {
         textLimit(issues,b.name(),255,"name");textLimit(issues,b.provider(),255,"provider");textLimit(issues,b.reference(),255,"reference");
         uncertain(issues,b.meetingPoint(),"meetingPoint",false);
         if(b.endingPoint().status()==CONFLICTING)block(issues,"SEMANTIC_FACT_UNRESOLVED","endingPoint");
-        if(b.endingPoint().status()==CLEAR && b.endingPoint().value().meaning()==SemanticTourExtraction.EndingMeaning.SAME_AS_MEETING_POINT && b.meetingPoint().status()!=CLEAR)
+        if(b.endingPoint().status()==CLEAR && b.endingPoint().value().meaning()==TourBookingFacts.EndingMeaning.SAME_AS_MEETING_POINT && b.meetingPoint().status()!=CLEAR)
             block(issues,"INVALID_BOOKING_LOCATION","endingPoint");
         if(b.meetingPoint().status()==CLEAR)location(issues,b.meetingPoint().value(),"meetingPoint");
         if(b.endingPoint().status()==CLEAR && b.endingPoint().value().location()!=null)location(issues,b.endingPoint().value().location(),"endingPoint");
@@ -174,7 +174,7 @@ public final class SourceBookingReview {
     private static void textLimit(List<Issue> issues,Fact<String> f,int max,String field) {
         if(f.status()==CLEAR && f.value().length()>max)block(issues,"INVALID_BOOKING_FIELDS",field);
     }
-    private static void location(List<Issue> issues,SemanticTourExtraction.DocumentLocation l,String field) {
+    private static void location(List<Issue> issues,TourBookingFacts.DocumentLocation l,String field) {
         if(l.name()!=null && l.name().length()>255 || l.address()!=null && l.address().length()>1000)
             block(issues,"INVALID_BOOKING_LOCATION",field);
     }

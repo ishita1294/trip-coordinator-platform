@@ -7,11 +7,11 @@ import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.MapperFeature;
 import tools.jackson.databind.json.JsonMapper;
 import static com.ishita.tripcoordinatorplatform.ai.document.SourceBookingExtraction.*;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.Status.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.Status.*;
 
 /** Explicit reader only. Does not select a worker route, emit V3, persist, or authorize confirmation. */
 public final class SourceBookingReader {
-    public record Projected(Target field, SemanticTourExtraction.LocalMoment moment,
+    public record Projected(Target field, TourBookingFacts.LocalMoment moment,
             SemanticTemporalConstraintV3.Relation relation, boolean inclusive,
             TemporalResolution temporalResolution, Instant instant) {}
     public enum TemporalResolution { UNIQUE_INSTANT, UNRESOLVED_TIMEZONE, DST_GAP, DST_OVERLAP }
@@ -90,12 +90,12 @@ public final class SourceBookingReader {
             bounded(extraction.sources(),512);bounded(extraction.bookings(),12);bounded(extraction.clauses(),160);
             require(!extraction.bookings().isEmpty(),"Booking inventory is required");
             require(extraction.coverageWarning()==null || text(extraction.coverageWarning()),"Invalid coverage warning");
-            var reader=SemanticTourSourceEvidence.read(original);int matched=0,unverified=0;
+            var reader=TourSourceEvidenceChecker.read(original);int matched=0,unverified=0;
             for(var s:extraction.sources()) {
                 require(s!=null && s.id()>=0 && s.quotation()!=null && !s.quotation().isBlank() && s.quotation().length()<=8000
                         && sources.putIfAbsent(s.id(),s)==null,"Invalid/duplicate source passage");
                 var check=reader.validateQuotation(new SemanticFactV3.SourceEvidence(null,null,s.quotation(),s.page()));
-                if(check==SemanticTourSourceEvidence.QuotationCheck.TEXT_MATCHED)matched++;else unverified++;
+                if(check==TourSourceEvidenceChecker.QuotationCheck.TEXT_MATCHED)matched++;else unverified++;
             }
             for(int i=0;i<extraction.clauses().size();i++) {
                 var c=extraction.clauses().get(i);require(c!=null && c.index()==i && c.kind()!=null && c.status()!=null && c.status()!=MISSING,"Invalid clause identity");
@@ -114,7 +114,7 @@ public final class SourceBookingReader {
                 fact(b.name(),string);fact(b.provider(),string);fact(b.reference(),string);
                 fact(b.timezone(),s->require(ZoneId.getAvailableZoneIds().contains(s),"Invalid IANA timezone"));
                 fact(b.meetingPoint(),this::location);fact(b.endingPoint(),e->{require(e.meaning()!=null,"Missing endpoint meaning");
-                    if(e.meaning()==SemanticTourExtraction.EndingMeaning.DIFFERENT_LOCATION){require(e.location()!=null,"Missing ending location");location(e.location());}
+                    if(e.meaning()==TourBookingFacts.EndingMeaning.DIFFERENT_LOCATION){require(e.location()!=null,"Missing ending location");location(e.location());}
                     else require(e.location()==null,"Unexpected ending address");});
                 fact(b.lifecycle(),s->require(s!=null && (b.lifecycle().status()!=CLEAR || s!=SemanticBookingLifecycleV3.State.UNKNOWN),"Unknown lifecycle is unresolved"));
                 bounded(b.replaces(),12);for(var r:b.replaces())fact(r,a->{require(a.bookingIndex()!=null && a.bookingIndex()>=0 && a.bookingIndex()<extraction.bookings().size() && a.bookingIndex()!=b.index(),"Invalid replacement target");
@@ -137,7 +137,7 @@ public final class SourceBookingReader {
             }
             path.remove(i);done.add(i);
         }
-        void location(SemanticTourExtraction.DocumentLocation l) {
+        void location(TourBookingFacts.DocumentLocation l) {
             require(l!=null && (text(l.name()) || text(l.address())),"Location needs a source-supported name/address");
             require((l.latitude()==null)==(l.longitude()==null),"Incomplete coordinate pair");
             if(l.latitude()!=null)require(Double.isFinite(l.latitude()) && Double.isFinite(l.longitude())
@@ -181,7 +181,7 @@ public final class SourceBookingReader {
                         resolution=offsets.isEmpty()?TemporalResolution.DST_GAP:offsets.size()>1?TemporalResolution.DST_OVERLAP:TemporalResolution.UNIQUE_INSTANT;
                         if(offsets.size()==1)instant=moment.toInstant(offsets.getFirst());
                     }
-                    projections.add(new Projected(p.field(),SemanticTourExtraction.LocalMoment.of(moment),v.relation(),true,resolution,instant));
+                    projections.add(new Projected(p.field(),TourBookingFacts.LocalMoment.of(moment),v.relation(),true,resolution,instant));
                 }
                 for(var kind:List.of(QuantityKind.DURATION_MINUTES,QuantityKind.ARRIVAL_LEAD_MINUTES))
                     require(booking.quantities().stream().anyMatch(q->q!=null && q.kind()==kind && q.clauseIndex()==null),"Missing explicit numeric schedule fact");

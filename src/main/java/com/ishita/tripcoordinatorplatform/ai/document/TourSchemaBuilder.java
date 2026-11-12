@@ -5,8 +5,8 @@ import java.util.List;
 import java.util.Map;
 
 /** JSON Schema machinery only; extracted domain values are typed records. */
-final class SemanticTourSchema {
-    private SemanticTourSchema() {}
+final class TourSchemaBuilder {
+    private TourSchemaBuilder() {}
     static final String INSTRUCTIONS = """
             Extract all documented attraction/tour bookings in one pass using semantic schema v2.
             Preserve document order and zero-based bookingIndex. Keep distinct bookings and their evidence
@@ -55,15 +55,15 @@ final class SemanticTourSchema {
                 "time", nullable(Map.of("type", "string", "description", "ISO local time HH:mm:ss; no UTC offset"))));
         defs.put("evidence", object(Map.of("bookingIndex", integer, "bookingAssociation", string,
                 "quotation", string, "reportedPage", nullable(integer))));
-        defs.put("derivation", object(Map.of("basis", enumeration(SemanticFact.Basis.values()),
-                "inputs", array(enumeration(SemanticFact.Field.values())))));
+        defs.put("derivation", object(Map.of("basis", enumeration(BookingFact.Basis.values()),
+                "inputs", array(enumeration(BookingFact.Field.values())))));
         defs.put("location", object(Map.of("name", nullable(string), "address", nullable(string),
                 "entrance", nullable(string), "instructions", nullable(string),
                 "latitude", nullable(Map.of("type", "number")), "longitude", nullable(Map.of("type", "number")))));
-        defs.put("ending", object(Map.of("meaning", enumeration(SemanticTourExtraction.EndingMeaning.values()),
+        defs.put("ending", object(Map.of("meaning", enumeration(TourBookingFacts.EndingMeaning.values()),
                 "location", nullable(ref("location")))));
-        defs.put("condition", object(Map.of("kind", enumeration(SemanticTourExtraction.ConditionKind.values()),
-                "obligation", enumeration(SemanticTourExtraction.Obligation.values()), "description", string,
+        defs.put("condition", object(Map.of("kind", enumeration(TourBookingFacts.ConditionKind.values()),
+                "obligation", enumeration(TourBookingFacts.Obligation.values()), "description", string,
                 "minimumAgeYears", nullable(integer), "noticeMinutes", nullable(integer))));
         defs.put("textFact", fact(string)); defs.put("timeFact", fact(moment));
         defs.put("integerFact", fact(integer)); defs.put("locationFact", fact(ref("location")));
@@ -82,7 +82,7 @@ final class SemanticTourSchema {
         return root;
     }
     private static Map<String,Object> fact(Map<String,Object> type) {
-        return object(Map.of("status", enumeration(SemanticFact.Status.values()), "value", nullable(type),
+        return object(Map.of("status", enumeration(BookingFact.Status.values()), "value", nullable(type),
                 "alternatives", array(type), "evidence", array(ref("evidence")),
                 "uncertainty", nullable(Map.of("type", "string")), "derivation", ref("derivation")));
     }

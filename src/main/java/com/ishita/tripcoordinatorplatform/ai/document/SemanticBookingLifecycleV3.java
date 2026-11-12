@@ -1,7 +1,7 @@
 package com.ishita.tripcoordinatorplatform.ai.document;
 
 import java.util.*;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.Status.CLEAR;
+import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.Status.CLEAR;
 
 /** Documentary lifecycle claims, not an application reservation status or confirmation decision. */
 public final class SemanticBookingLifecycleV3 {
@@ -12,9 +12,9 @@ public final class SemanticBookingLifecycleV3 {
     public static final int MAX_REPLACEMENTS = 16;
 
     static SemanticFactV3<State> unestablished() {
-        return new SemanticFactV3<>(SemanticFact.Status.MISSING,null,List.of(),List.of(),
+        return new SemanticFactV3<>(BookingFact.Status.MISSING,null,List.of(),List.of(),
                 "Documentary booking validity was not established by this historical contract",List.of(),
-                new SemanticFactV3.Interpretation(SemanticFact.Basis.NOT_ESTABLISHED,List.of(),null));
+                new SemanticFactV3.Interpretation(BookingFact.Basis.NOT_ESTABLISHED,List.of(),null));
     }
     static void validate(SemanticTourExtractionV3 extraction, SemanticTourExtractionV3Validator validator) {
         Map<Integer,List<Integer>> edges=new HashMap<>();

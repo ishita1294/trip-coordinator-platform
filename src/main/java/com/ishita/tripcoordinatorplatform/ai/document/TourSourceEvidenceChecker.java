@@ -15,20 +15,20 @@ import java.util.IdentityHashMap;
 import java.util.Set;
 
 /** Checks available source text without treating scanned or image evidence as verified. */
-final class SemanticTourSourceEvidence {
+final class TourSourceEvidenceChecker {
     enum QuotationCheck { TEXT_MATCHED, UNVERIFIED }
     record Grounding(int textMatchedQuotations, int unverifiedQuotations) {}
     private record Page(String text, boolean completeText) {}
     private final List<Page> pages;
 
-    private SemanticTourSourceEvidence(List<Page> pages) {
+    private TourSourceEvidenceChecker(List<Page> pages) {
         this.pages = List.copyOf(pages);
     }
 
     /** Source text is an optional checking capability, not a new extraction input requirement. */
-    static SemanticTourSourceEvidence read(DocumentAiInput source) {
+    static TourSourceEvidenceChecker read(DocumentAiInput source) {
         if ("image/jpeg".equals(source.contentType()) || "image/png".equals(source.contentType()))
-            return new SemanticTourSourceEvidence(List.of(new Page("", false)));
+            return new TourSourceEvidenceChecker(List.of(new Page("", false)));
         if (!"application/pdf".equals(source.contentType()))
             throw new InvalidDocumentExtractionException("Only PDF, JPEG, and PNG documents are supported");
         try (var pdf = Loader.loadPDF(source.content())) {
@@ -53,13 +53,13 @@ final class SemanticTourSourceEvidence {
                     pages.add(new Page(extracted, false));
                 }
             }
-            return new SemanticTourSourceEvidence(pages);
+            return new TourSourceEvidenceChecker(pages);
         } catch (IOException exception) {
             // A local parser limitation must not disable the provider's existing PDF support.
             // No source text, passwords or parser details are logged or copied into the extraction.
-            org.slf4j.LoggerFactory.getLogger(SemanticTourSourceEvidence.class)
+            org.slf4j.LoggerFactory.getLogger(TourSourceEvidenceChecker.class)
                     .info("Document source text unavailable reason=PDF_TEXT_READ_FAILED; quotations remain unverified");
-            return new SemanticTourSourceEvidence(List.of());
+            return new TourSourceEvidenceChecker(List.of());
         }
     }
 

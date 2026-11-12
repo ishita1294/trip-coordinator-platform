@@ -12,7 +12,7 @@ public record SemanticSupplementalFactV3(Applicability applicability, SemanticFa
         public Scope { bookingIndexes = bookingIndexes == null ? null : List.copyOf(bookingIndexes); }
     }
     /** Fact evidence supports both meaning and applicability; uncertain scopes are retained, never silently chosen. */
-    public record Applicability(SemanticFact.Status status, Scope value, List<Scope> alternatives, String uncertainty) {
+    public record Applicability(BookingFact.Status status, Scope value, List<Scope> alternatives, String uncertainty) {
         public Applicability { alternatives = alternatives == null ? null : List.copyOf(alternatives); }
     }
 }

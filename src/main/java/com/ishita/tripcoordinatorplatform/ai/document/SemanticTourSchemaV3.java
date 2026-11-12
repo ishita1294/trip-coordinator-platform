@@ -175,7 +175,7 @@ final class SemanticTourSchemaV3 {
     @SuppressWarnings("unchecked")
     static Map<String, Object> schema() {
         // Reuse unchanged typed domain shapes, never modify the historical v2 schema.
-        var root = new LinkedHashMap<>(SemanticTourSchema.schema());
+        var root = new LinkedHashMap<>(TourSchemaBuilder.schema());
         var defs = new LinkedHashMap<>((Map<String,Object>) root.get("$defs"));
         var integer = Map.<String,Object>of("type", "integer");
         // The validator requires a location exactly for DIFFERENT_LOCATION, so generation must not offer any other combination.
@@ -184,12 +184,12 @@ final class SemanticTourSchemaV3 {
                 "bookingAssociation", Map.of("type","string"), "quotation", Map.of("type","string"),
                 "reportedPage", nullable(Map.of("type","integer","minimum",1)))));
         defs.put("reference", object(Map.of("bookingIndex", integer,
-                "field", enumeration(SemanticFact.Field.values()), "conditionIndex", nullable(integer))));
+                "field", enumeration(BookingFact.Field.values()), "conditionIndex", nullable(integer))));
         defs.put("calculation", object(Map.of("operation", enumeration(SemanticFactV3.Operation.values()),
                 "operands", array(ref("reference")), "unit", enumeration(SemanticFactV3.Unit.values()),
                 "temporalBasis", enumeration(SemanticFactV3.TemporalBasis.values()))));
         defs.remove("derivation");
-        defs.put("interpretation", object(Map.of("basis", enumeration(SemanticFact.Basis.values()),
+        defs.put("interpretation", object(Map.of("basis", enumeration(BookingFact.Basis.values()),
                 "dependencies", array(ref("reference")), "calculation", nullable(ref("calculation")))));
         for (var name : List.of("textFact", "timeFact", "integerFact", "locationFact", "endingFact", "conditionFact")) {
             var properties = new LinkedHashMap<>((Map<String,Object>) ((Map<String,Object>) defs.get(name)).get("properties"));
@@ -213,12 +213,12 @@ final class SemanticTourSchemaV3 {
                 "trigger",nullable(text(400)),"description",text(500),"qualification",nullable(text(400)),
                 "detail",nullable(ref("detail")))));
         // Enforce the existing semantic boundary during generation, including alternatives.
-        defs.put("condition", Map.of("anyOf", java.util.Arrays.stream(SemanticTourExtraction.ConditionKind.values())
+        defs.put("condition", Map.of("anyOf", java.util.Arrays.stream(TourBookingFacts.ConditionKind.values())
                 .map(kind -> object(Map.of("kind", Map.of("type","string","enum",List.of(kind.name())),
                         "semantics",ref("assertion"),
-                        "minimumAgeYears",kind==SemanticTourExtraction.ConditionKind.PARTICIPATION
+                        "minimumAgeYears",kind==TourBookingFacts.ConditionKind.PARTICIPATION
                                 ? nullable(integer) : Map.of("type","null"),
-                        "noticeMinutes",kind==SemanticTourExtraction.ConditionKind.CANCELLATION
+                        "noticeMinutes",kind==TourBookingFacts.ConditionKind.CANCELLATION
                                 ? nullable(integer) : Map.of("type","null"))))
                 .toList()));
         var conditionProperties = new LinkedHashMap<>((Map<String,Object>) ((Map<String,Object>) defs.get("conditionFact")).get("properties"));
@@ -235,7 +235,7 @@ final class SemanticTourSchemaV3 {
         defs.put("assertionFact",object(assertionProperties));
         defs.put("scope",object(Map.of("kind",enumeration(SemanticSupplementalFactV3.ScopeKind.values()),
                 "bookingIndexes",array(Map.of("type","integer","minimum",0)))));
-        defs.put("applicability",object(Map.of("status",enumeration(SemanticFact.Status.values()),
+        defs.put("applicability",object(Map.of("status",enumeration(BookingFact.Status.values()),
                 "value",nullable(ref("scope")),"alternatives",boundedArray(ref("scope"),0,4),"uncertainty",nullable(text(500)))));
         defs.put("supplementalFact",object(Map.of("applicability",ref("applicability"),"fact",ref("assertionFact"))));
         defs.put("temporalBoundary",object(Map.of("moment",object(Map.of("date",Map.of("type","string"),"time",Map.of("type","string"))),"inclusive",Map.of("type","boolean"))));
@@ -273,9 +273,9 @@ final class SemanticTourSchemaV3 {
         return root;
     }
     private static Map<String,Object> ending() {
-        var different = SemanticTourExtraction.EndingMeaning.DIFFERENT_LOCATION.name();
-        var withoutLocation = List.of(SemanticTourExtraction.EndingMeaning.SAME_AS_MEETING_POINT.name(),
-                SemanticTourExtraction.EndingMeaning.UNKNOWN.name());
+        var different = TourBookingFacts.EndingMeaning.DIFFERENT_LOCATION.name();
+        var withoutLocation = List.of(TourBookingFacts.EndingMeaning.SAME_AS_MEETING_POINT.name(),
+                TourBookingFacts.EndingMeaning.UNKNOWN.name());
         return Map.of("anyOf", List.of(
                 object(Map.<String,Object>of("meaning", Map.of("type","string","enum",List.of(different)),
                         "location", ref("location"))),

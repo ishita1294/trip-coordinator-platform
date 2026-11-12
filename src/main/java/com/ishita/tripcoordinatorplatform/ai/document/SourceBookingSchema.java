@@ -93,7 +93,7 @@ public final class SourceBookingSchema {
     private static Map<String,Object> enumeration(Class<? extends Enum<?>> type) {
         return Map.of("type","string","enum",Arrays.stream(type.getEnumConstants()).map(Enum::name).toList());
     }
-    private static Map<String,Object> fact(Map<String,Object> value) { return object("status",enumeration(SemanticFact.Status.class),
+    private static Map<String,Object> fact(Map<String,Object> value) { return object("status",enumeration(BookingFact.Status.class),
             "value",nullable(value),"alternatives",array(value),"sources",array(Map.of("type","integer")),"uncertainty",nullable(Map.of("type","string"))); }
     public static Map<String,Object> schema() {
         Map<String,Object> string=Map.of("type","string"), integer=Map.of("type","integer"), ids=array(integer);
@@ -110,11 +110,11 @@ public final class SourceBookingSchema {
         defs.put("number",object("literal",nullable(integer),"difference",nullable(ref("difference"))));
         defs.put("quantity",object("kind",enumeration(SourceBookingExtraction.QuantityKind.class),"clauseIndex",nullable(integer),"fact",fact(ref("number"))));
         defs.put("location",object("name",nullable(string),"address",nullable(string),"entrance",nullable(string),"latitude",nullable(Map.of("type","number")),"longitude",nullable(Map.of("type","number")),"instructions",nullable(string)));
-        defs.put("ending",object("meaning",enumeration(SemanticTourExtraction.EndingMeaning.class),"location",nullable(ref("location"))));
+        defs.put("ending",object("meaning",enumeration(TourBookingFacts.EndingMeaning.class),"location",nullable(ref("location"))));
         defs.put("association",object("bookingIndex",integer,"bookingReference",nullable(string)));
         defs.put("booking",object("index",integer,"name",fact(string),"provider",fact(string),"reference",fact(string),"timezone",fact(string),"meetingPoint",fact(ref("location")),"endingPoint",fact(ref("ending")),"lifecycle",fact(enumeration(SemanticBookingLifecycleV3.State.class)),"replaces",array(fact(ref("association")),0,12),"participants",array(object("category",fact(string),"count",fact(integer)),1,16),"schedules",array(ref("schedule"),3,32),"projections",array(ref("projection"),0,3),"quantities",array(ref("quantity"),2,24)));
         defs.put("scope",object("kind",enumeration(SourceBookingExtraction.ScopeKind.class),"bookings",ids));
-        defs.put("clause",object("index",integer,"kind",enumeration(SourceBookingExtraction.ClauseKind.class),"status",Map.of("type","string","enum",Arrays.stream(SemanticFact.Status.values()).filter(v->v!=SemanticFact.Status.MISSING).map(Enum::name).toList()),"conditionality",enumeration(SemanticAssertionV3.Conditionality.class),"sources",ids,"applicability",fact(ref("scope")),"conditionSources",ids,"qualificationSources",ids,"uncertainty",nullable(string)));
+        defs.put("clause",object("index",integer,"kind",enumeration(SourceBookingExtraction.ClauseKind.class),"status",Map.of("type","string","enum",Arrays.stream(BookingFact.Status.values()).filter(v->v!=BookingFact.Status.MISSING).map(Enum::name).toList()),"conditionality",enumeration(SemanticAssertionV3.Conditionality.class),"sources",ids,"applicability",fact(ref("scope")),"conditionSources",ids,"qualificationSources",ids,"uncertainty",nullable(string)));
         var result=new LinkedHashMap<>(object("schemaVersion",Map.of("type","integer","enum",List.of(4)),"contract",Map.of("type","string","enum",List.of(SourceBookingExtraction.CONTRACT)),"sources",array(object("id",integer,"page",nullable(integer),"quotation",string),0,512),"bookings",array(ref("booking"),1,12),"clauses",array(ref("clause"),0,160),"coverageWarning",nullable(string)));
         result.put("$defs",defs);return Collections.unmodifiableMap(result);
     }

@@ -1,7 +1,7 @@
 package com.ishita.tripcoordinatorplatform.ai.document;
 
 import java.util.List;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.*;
 
 /** Untrusted AI claims. Verification of a calculation is returned by Java, never asserted by the model. */
 public record SemanticFactV3<T>(Status status, T value, List<T> alternatives, List<SourceEvidence> evidence,
@@ -29,11 +29,11 @@ public record SemanticFactV3<T>(Status status, T value, List<T> alternatives, Li
     }
 
     /** Internal validation view only, never persisted or presented as a historical v2 extraction. */
-    SemanticFact<T> shape() {
+    BookingFact<T> shape() {
         return shape(java.util.function.Function.identity());
     }
-    <R> SemanticFact<R> shape(java.util.function.Function<T,R> mapping) {
-        return new SemanticFact<>(status, value == null ? null : mapping.apply(value),
+    <R> BookingFact<R> shape(java.util.function.Function<T,R> mapping) {
+        return new BookingFact<>(status, value == null ? null : mapping.apply(value),
                 alternatives == null ? null : alternatives.stream().map(mapping).toList(),
                 evidence == null ? null : evidence.stream().map(SourceEvidence::bookingEvidence).toList(), uncertainty,
                 interpretation == null ? null : new Derivation(

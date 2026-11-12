@@ -1,7 +1,7 @@
 package com.ishita.tripcoordinatorplatform.ai.document;
 
 import java.util.List;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticTourExtraction.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.TourBookingFacts.*;
 
 /** Staged successor. No production processing, persistence or confirmation route selects v3. */
 public record SemanticTourExtractionV3(int schemaVersion, Provenance provenance, List<Booking> bookings,
@@ -20,8 +20,8 @@ public record SemanticTourExtractionV3(int schemaVersion, Provenance provenance,
     }
     /** Booking-local scope is the containing bookingIndex; shared/uncertain scope belongs in supplementalFacts. */
     public record Condition(ConditionKind kind, SemanticAssertionV3 semantics, Integer minimumAgeYears, Integer noticeMinutes) {
-        SemanticTourExtraction.Condition shape() {
-            return new SemanticTourExtraction.Condition(kind,
+        TourBookingFacts.Condition shape() {
+            return new TourBookingFacts.Condition(kind,
                     switch (semantics.modality()) {
                         case REQUIRED -> Obligation.REQUIRED;
                         case PROHIBITED -> Obligation.PROHIBITED;
@@ -72,8 +72,8 @@ public record SemanticTourExtractionV3(int schemaVersion, Provenance provenance,
                     requiredArrival, arrivalLeadMinutes, meetingPoint, ending, instructions, conditions,
                     temporalConstraints, lifecycle, replaces);
         }
-        SemanticTourExtraction.Booking shape() {
-            return new SemanticTourExtraction.Booking(bookingIndex, name.shape(), provider.shape(), bookingReference.shape(),
+        TourBookingFacts.Booking shape() {
+            return new TourBookingFacts.Booking(bookingIndex, name.shape(), provider.shape(), bookingReference.shape(),
                     start.shape(), end.shape(), timezone.shape(), durationMinutes.shape(), requiredArrival.shape(),
                     arrivalLeadMinutes.shape(), meetingPoint.shape(), endingPoint.shape(), instructions.shape(),
                     conditions.stream().map(f -> f.shape(Condition::shape)).toList());

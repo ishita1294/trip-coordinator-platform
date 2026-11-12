@@ -22,9 +22,9 @@ public record BookingInformation(Long reservationId, Presence presence, CurrentB
     public record AcceptedReview(Long reviewId, long version, Long acceptedBy, Instant acceptedAt,
             List<TourCorrectionRequest.Change> changes, List<TourSourceAssessment.Finding> assessments) {}
     public record Details(Long documentId, Long extractionId, int bookingIndex, int schemaVersion,
-            String extractionSha256, SemanticTourExtraction.Provenance provenance,
+            String extractionSha256, TourBookingFacts.Provenance provenance,
             SemanticTourExtractionV3.Booking originalBooking,
-            Map<SemanticFact.Field,SemanticTourExtractionV3Validator.Verification> originalCalculationVerifications,
+            Map<BookingFact.Field,SemanticTourExtractionV3Validator.Verification> originalCalculationVerifications,
             List<SemanticSupplementalFactV3> applicableFacts,
             List<SemanticSupplementalFactV3> documentInformation,
             List<SemanticSupplementalFactV3> unresolvedApplicability,

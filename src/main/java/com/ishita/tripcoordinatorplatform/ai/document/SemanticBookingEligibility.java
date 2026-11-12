@@ -1,7 +1,7 @@
 package com.ishita.tripcoordinatorplatform.ai.document;
 
 import java.util.*;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.Status.CLEAR;
+import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.Status.CLEAR;
 
 /** Deterministic classification of already validated documentary claims. No reservation mutations or wording interpretation. */
 public final class SemanticBookingEligibility {
