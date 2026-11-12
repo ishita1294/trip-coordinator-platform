@@ -8,7 +8,11 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.util.*;
 
-/** Bounded process-local admission control. No responses or provider content are cached. */
+/**
+ * Decides whether an Explore search may start right now. It limits how many searches run at once overall and per traveler,
+ * how many a traveler may start per minute, and refuses an identical search that is already running or just finished.
+ * Everything is held in memory only; no responses or provider content are kept.
+ */
 @Component
 @Profile("!document-worker")
 public class ExploreRequestGuard {
@@ -21,24 +25,8 @@ public class ExploreRequestGuard {
     private final Map<Long, Traveler> travelers = new HashMap<>();
     private final int concurrentLimit, travelerConcurrentLimit, requestsPerMinute, duplicateSeconds;
     private int active;
-    private boolean fair;
-    @org.springframework.beans.factory.annotation.Autowired(required=false) private com.ishita.tripcoordinatorplatform.auth.TripAccessService access;
-    private FairCapacity capacity;
-    private int waitSeconds=15;
 
     @org.springframework.beans.factory.annotation.Autowired
-    public ExploreRequestGuard(@Value("${app.explore.max-concurrent-requests:8}") int concurrent,
-        @Value("${app.explore.max-concurrent-per-traveler:2}") int actorConcurrent,
-        @Value("${app.explore.max-requests-per-minute:6}") int starts,
-        @Value("${app.explore.duplicate-window-seconds:5}") int duplicates,
-        @Value("${app.explore.google.accounting.mode:legacy}") String mode,
-        @Value("${app.explore.capacity.queue:128}") int queue,
-        @Value("${app.explore.capacity.wait-seconds:15}") int wait) {
-        this(concurrent,actorConcurrent,starts,duplicates);
-        if(!Set.of("legacy","durable").contains(mode)||wait<1||wait>30) throw new IllegalArgumentException("Invalid EXPLORE capacity mode/deadline");
-        fair=mode.equals("durable");waitSeconds=wait;capacity=new FairCapacity(concurrent,actorConcurrent,queue);
-    }
-
     public ExploreRequestGuard(@Value("${app.explore.max-concurrent-requests:8}") int concurrentLimit,
             @Value("${app.explore.max-concurrent-per-traveler:2}") int travelerConcurrentLimit,
             @Value("${app.explore.max-requests-per-minute:6}") int requestsPerMinute,
@@ -74,24 +62,8 @@ public class ExploreRequestGuard {
     public Permit beginComparison(Long tripId, Long userId, Object inputs, Instant now) {
         return admit(userId, new Search(tripId, List.of("SCENARIOS", inputs)), now);
     }
-    private Permit admit(Long userId, Search search, Instant now) {
-        if(fair) {
-            Traveler traveler;
-            synchronized(this) {
-                travelers.values().removeIf(t -> t.active.isEmpty());
-                traveler=travelers.computeIfAbsent(userId,ignored->new Traveler());
-                if(!traveler.active.add(search)) throw new ResponseStatusException(HttpStatus.CONFLICT,"This same EXPLORE search is already running.");
-                active++;
-            }
-            var result=new Permit(traveler,search);
-            try {result.capacityPermit=capacity.acquire(userId,now.plusSeconds(waitSeconds));
-                if(access!=null) access.requireMembership(search.tripId,userId);
-                return result;}
-            catch(RuntimeException failure) {result.close();throw failure;}
-        }
-        return legacyAdmit(userId,search,now);
-    }
-    private synchronized Permit legacyAdmit(Long userId, Search search, Instant now) {
+    /** Applies all the limits above and, if the search is allowed, returns a permit that must be closed when it ends. */
+    private synchronized Permit admit(Long userId, Search search, Instant now) {
         travelers.values().forEach(t -> {
             t.starts.removeIf(at -> !at.isAfter(now.minusSeconds(60)));
             t.completed.values().removeIf(at -> !at.isAfter(now.minusSeconds(duplicateSeconds)));
@@ -118,15 +90,13 @@ public class ExploreRequestGuard {
         private final Traveler traveler;
         private final Search search;
         private boolean successful, closed;
-        private FairCapacity.Permit capacityPermit;
         private Permit(Traveler traveler, Search search) { this.traveler = traveler; this.search = search; }
         public void succeeded() { successful = true; }
         @Override public void close() {
             synchronized (ExploreRequestGuard.this) {
                 if (closed) return;
                 closed = true; traveler.active.remove(search); active--;
-                if (successful && !fair) traveler.completed.put(search, Instant.now());
-                if(capacityPermit!=null) capacityPermit.close();
+                if (successful) traveler.completed.put(search, Instant.now());
             }
         }
     }
