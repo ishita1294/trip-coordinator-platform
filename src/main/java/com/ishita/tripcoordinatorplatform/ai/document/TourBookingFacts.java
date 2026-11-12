@@ -7,22 +7,22 @@ import java.time.LocalTime;
 import java.util.List;
 
 /** V2 envelope for the existing immutable extracted_data store; not a confirmed reservation. */
-public record SemanticTourExtraction(int schemaVersion, Provenance provenance, List<Booking> bookings) {
+public record TourBookingFacts(int schemaVersion, Provenance provenance, List<Booking> bookings) {
     public static final int SCHEMA_VERSION = 2;
     public static final String PROMPT_VERSION = "tour-semantic-2.0";
-    public SemanticTourExtraction { bookings = bookings == null ? null : List.copyOf(bookings); }
+    public TourBookingFacts { bookings = bookings == null ? null : List.copyOf(bookings); }
 
     /** Assigned by our adapter, not returned by the model. Document/extraction IDs remain the DB FK/PK. */
     public record Provenance(String sourceSha256, String model, String promptVersion,
                              String providerResponseId, Instant extractedAt) {}
 
     public record Booking(int bookingIndex,
-            SemanticFact<String> name, SemanticFact<String> provider, SemanticFact<String> bookingReference,
-            SemanticFact<LocalMoment> start, SemanticFact<LocalMoment> end, SemanticFact<String> timezone,
-            SemanticFact<Integer> durationMinutes, SemanticFact<LocalMoment> requiredArrival,
-            SemanticFact<Integer> arrivalLeadMinutes, SemanticFact<DocumentLocation> meetingPoint,
-            SemanticFact<EndingLocation> endingPoint, SemanticFact<String> instructions,
-            List<SemanticFact<Condition>> conditions) {
+            BookingFact<String> name, BookingFact<String> provider, BookingFact<String> bookingReference,
+            BookingFact<LocalMoment> start, BookingFact<LocalMoment> end, BookingFact<String> timezone,
+            BookingFact<Integer> durationMinutes, BookingFact<LocalMoment> requiredArrival,
+            BookingFact<Integer> arrivalLeadMinutes, BookingFact<DocumentLocation> meetingPoint,
+            BookingFact<EndingLocation> endingPoint, BookingFact<String> instructions,
+            List<BookingFact<Condition>> conditions) {
         public Booking { conditions = conditions == null ? null : List.copyOf(conditions); }
     }
 

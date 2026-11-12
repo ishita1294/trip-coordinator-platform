@@ -145,7 +145,7 @@ public class TourConfirmationPolicy {
             catch(JacksonException invalid){throw invalid("INVALID_LIFECYCLE_CLARIFICATION","Use a supported lifecycle state.");}
             if(clarification.state()==null || clarification.reason().isBlank() || clarification.reason().length()>500)
                 throw invalid("INVALID_LIFECYCLE_CLARIFICATION","Explain the user-reported lifecycle in 1–500 characters.");
-            boolean conflict=b.lifecycle().status()==SemanticFact.Status.CONFLICTING || b.lifecycle().status()==SemanticFact.Status.CLEAR && b.lifecycle().value()!=clarification.state();
+            boolean conflict=b.lifecycle().status()==BookingFact.Status.CONFLICTING || b.lifecycle().status()==BookingFact.Status.CLEAR && b.lifecycle().value()!=clarification.state();
             if(conflict && !clarification.acknowledgeSourceConflict())
                 throw invalid("LIFECYCLE_CONFLICT_ACKNOWLEDGEMENT_REQUIRED","Explicitly acknowledge conflicting source information; a user report is not document verification.");
             result.put(b.bookingIndex(),clarification);
@@ -158,20 +158,20 @@ public class TourConfirmationPolicy {
         try{return SemanticBookingEligibility.assess(v3,states);}
         catch(InvalidDocumentExtractionException contradictory){throw invalid("INVALID_LIFECYCLE_CLARIFICATION",contradictory.getMessage());}
     }
-    private static final Map<SemanticFact.Field,List<String>> V3_FIELDS=Map.ofEntries(
-            Map.entry(SemanticFact.Field.NAME,List.of("name")),Map.entry(SemanticFact.Field.PROVIDER,List.of("provider")),
-            Map.entry(SemanticFact.Field.BOOKING_REFERENCE,List.of("bookingReference")),Map.entry(SemanticFact.Field.START,List.of("startDate","startTime")),
-            Map.entry(SemanticFact.Field.END,List.of("endDate","endTime")),Map.entry(SemanticFact.Field.TIMEZONE,List.of("timezone")),
-            Map.entry(SemanticFact.Field.DURATION_MINUTES,List.of("durationMinutes")),Map.entry(SemanticFact.Field.REQUIRED_ARRIVAL,List.of("requiredArrivalLocal")),
-            Map.entry(SemanticFact.Field.ARRIVAL_LEAD_MINUTES,List.of("arrivalLeadMinutes")),Map.entry(SemanticFact.Field.MEETING_POINT,List.of("meetingPoint")),
-            Map.entry(SemanticFact.Field.ENDING_POINT,List.of("endingPoint","endingLocationChoice")),Map.entry(SemanticFact.Field.INSTRUCTIONS,List.of("instructions")));
+    private static final Map<BookingFact.Field,List<String>> V3_FIELDS=Map.ofEntries(
+            Map.entry(BookingFact.Field.NAME,List.of("name")),Map.entry(BookingFact.Field.PROVIDER,List.of("provider")),
+            Map.entry(BookingFact.Field.BOOKING_REFERENCE,List.of("bookingReference")),Map.entry(BookingFact.Field.START,List.of("startDate","startTime")),
+            Map.entry(BookingFact.Field.END,List.of("endDate","endTime")),Map.entry(BookingFact.Field.TIMEZONE,List.of("timezone")),
+            Map.entry(BookingFact.Field.DURATION_MINUTES,List.of("durationMinutes")),Map.entry(BookingFact.Field.REQUIRED_ARRIVAL,List.of("requiredArrivalLocal")),
+            Map.entry(BookingFact.Field.ARRIVAL_LEAD_MINUTES,List.of("arrivalLeadMinutes")),Map.entry(BookingFact.Field.MEETING_POINT,List.of("meetingPoint")),
+            Map.entry(BookingFact.Field.ENDING_POINT,List.of("endingPoint","endingLocationChoice")),Map.entry(BookingFact.Field.INSTRUCTIONS,List.of("instructions")));
     /** Invalidate transitive arithmetic-derived values in the effective view only, never the original extraction. */
     Map<Integer,Set<String>> invalidateV3Derived(ObjectNode facts,Map<Integer,Set<String>> corrected){
         if(!facts.has("semanticOriginal") || facts.get("semanticOriginal").path("schemaVersion").asInt()!=3)return Map.of();
         var result=new HashMap<Integer,Set<String>>();
         var original=new TourExtractionCodec(mapper).decode(facts.get("semanticOriginal").toString()).semanticV3();
         for(var b:original.bookings()){
-            var explicit=corrected.getOrDefault(b.bookingIndex(),Set.of());var changed=EnumSet.noneOf(SemanticFact.Field.class);
+            var explicit=corrected.getOrDefault(b.bookingIndex(),Set.of());var changed=EnumSet.noneOf(BookingFact.Field.class);
             V3_FIELDS.forEach((field,keys)->{if(keys.stream().anyMatch(explicit::contains))changed.add(field);});
             var tree=mapper.valueToTree(b);var invalidated=new HashSet<String>();boolean again;
             do {again=false;
@@ -183,7 +183,7 @@ public class TourConfirmationPolicy {
                     String basis=d.path("basis").asString();
                     if(!Set.of("CALCULATED","CONTEXT_INTERPRETED").contains(basis))continue;
                     var refs=new ArrayList<JsonNode>();d.path("dependencies").forEach(refs::add);d.path("calculation").path("operands").forEach(refs::add);
-                    if(refs.stream().noneMatch(r->changed.contains(SemanticFact.Field.valueOf(r.path("field").asString()))))continue;
+                    if(refs.stream().noneMatch(r->changed.contains(BookingFact.Field.valueOf(r.path("field").asString()))))continue;
                     // Retain contextual source claims as AI interpretations; propagate their changed
                     // support so downstream model calculations are never reused as current results.
                     if(basis.equals("CONTEXT_INTERPRETED")){changed.add(field);again=true;continue;}

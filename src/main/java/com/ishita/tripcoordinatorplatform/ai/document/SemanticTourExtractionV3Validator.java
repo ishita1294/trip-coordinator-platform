@@ -2,9 +2,9 @@ package com.ishita.tripcoordinatorplatform.ai.document;
 
 import java.time.*;
 import java.util.*;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFactV3.*;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticTourExtraction.LocalMoment;
+import static com.ishita.tripcoordinatorplatform.ai.document.TourBookingFacts.LocalMoment;
 
 /** Structured validation only. No interpretation of source expressions, evidence or natural language. */
 public final class SemanticTourExtractionV3Validator {
@@ -41,7 +41,7 @@ public final class SemanticTourExtractionV3Validator {
             for (var ref : facts.keySet()) visit(ref, facts, new HashSet<>(), new HashSet<>());
             assertions.validateBookingConditions(b);
             // Reuse only unchanged typed/status/evidence/location/condition rules, not v2 derivation or timing semantics.
-            new SemanticTourExtractionValidator().validateBooking(b.shape(), false);
+            new TourBookingFactsValidator().validateBooking(b.shape(), false);
             if (b.timezone().value() != null) canonicalZone(b.timezone().value());
             b.timezone().alternatives().forEach(this::canonicalZone);
             for (var entry : facts.entrySet()) {

@@ -3,13 +3,13 @@ package com.ishita.tripcoordinatorplatform.ai.document;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.Status.CLEAR;
+import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.Status.CLEAR;
 
 /** Documentary local-time semantics, not a rule engine or a verified scheduling instant. */
 public record SemanticTemporalConstraintV3(Target target, SemanticFactV3<Requirement> fact) {
     public enum Target { START, END, REQUIRED_ARRIVAL }
     public enum Relation { EXACT, DEADLINE, EARLIEST, WINDOW }
-    public record Boundary(SemanticTourExtraction.LocalMoment moment, Boolean inclusive) {}
+    public record Boundary(TourBookingFacts.LocalMoment moment, Boolean inclusive) {}
     public record Requirement(Relation relation, Boundary lower, Boundary upper,
             SemanticAssertionV3.Conditionality conditionality, String trigger) {
         /** Local-domain membership only. Does not resolve timezone, offsets or DST. */
@@ -94,7 +94,7 @@ public record SemanticTemporalConstraintV3(Target target, SemanticFactV3<Require
         if (edits.stream().anyMatch(temporal::contains)) return false;
         return b.temporalConstraints().stream().noneMatch(c -> {
             var refs = new java.util.ArrayList<>(c.fact().interpretation().dependencies());
-            refs.add(new SemanticFactV3.Reference(b.bookingIndex(), SemanticFact.Field.valueOf(c.target().name()), null));
+            refs.add(new SemanticFactV3.Reference(b.bookingIndex(), BookingFact.Field.valueOf(c.target().name()), null));
             return refs.stream().anyMatch(ref -> affected(ref,b,edits,new java.util.HashSet<>()));
         });
     }

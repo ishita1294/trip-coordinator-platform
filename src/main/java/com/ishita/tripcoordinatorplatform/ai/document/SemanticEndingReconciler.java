@@ -1,9 +1,9 @@
 package com.ishita.tripcoordinatorplatform.ai.document;
 
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticTourExtraction.EndingLocation;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticTourExtraction.EndingMeaning;
+import static com.ishita.tripcoordinatorplatform.ai.document.TourBookingFacts.EndingLocation;
+import static com.ishita.tripcoordinatorplatform.ai.document.TourBookingFacts.EndingMeaning;
 
-import com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.Status;
+import com.ishita.tripcoordinatorplatform.ai.document.BookingFact.Status;
 import java.util.ArrayList;
 import java.util.List;
 

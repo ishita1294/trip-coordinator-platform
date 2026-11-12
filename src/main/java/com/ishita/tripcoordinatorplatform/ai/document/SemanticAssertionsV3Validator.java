@@ -3,7 +3,7 @@ package com.ishita.tripcoordinatorplatform.ai.document;
 import java.util.*;
 import java.util.function.Consumer;
 import tools.jackson.databind.json.JsonMapper;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFact.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.BookingFact.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.SemanticFactV3.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.SemanticAssertionV3.*;
 import static com.ishita.tripcoordinatorplatform.ai.document.SemanticSupplementalFactV3.*;

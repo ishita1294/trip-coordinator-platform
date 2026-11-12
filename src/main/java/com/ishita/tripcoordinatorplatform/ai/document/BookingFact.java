@@ -3,9 +3,9 @@ package com.ishita.tripcoordinatorplatform.ai.document;
 import java.util.List;
 
 /** An AI interpretation of source material, never independently verified documentary evidence. */
-public record SemanticFact<T>(Status status, T value, List<T> alternatives,
+public record BookingFact<T>(Status status, T value, List<T> alternatives,
                               List<Evidence> evidence, String uncertainty, Derivation derivation) {
-    public SemanticFact {
+    public BookingFact {
         alternatives = alternatives == null ? null : List.copyOf(alternatives);
         evidence = evidence == null ? null : List.copyOf(evidence);
     }

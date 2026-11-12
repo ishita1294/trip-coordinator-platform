@@ -1,7 +1,7 @@
 package com.ishita.tripcoordinatorplatform.ai.document;
 
 import java.util.List;
-import static com.ishita.tripcoordinatorplatform.ai.document.SemanticTourExtraction.*;
+import static com.ishita.tripcoordinatorplatform.ai.document.TourBookingFacts.*;
 
 /** Distinct, inactive successor: source facts and clauses, not compressed V3 interpretation objects. */
 public record SourceBookingExtraction(int schemaVersion, String contract, List<Source> sources,
@@ -13,7 +13,7 @@ public record SourceBookingExtraction(int schemaVersion, String contract, List<S
     static <T> List<T> copy(List<T> values) { return values == null ? null : List.copyOf(values); }
     public record Source(int id, Integer page, String quotation) {}
     /** Normalized values and uncertainty are model decisions. No derivation prose or explanation sidecar. */
-    public record Fact<T>(SemanticFact.Status status, T value, List<T> alternatives,
+    public record Fact<T>(BookingFact.Status status, T value, List<T> alternatives,
             List<Integer> sources, String uncertainty) {
         public Fact { alternatives=copy(alternatives); sources=copy(sources); }
     }
@@ -65,7 +65,7 @@ public record SourceBookingExtraction(int schemaVersion, String contract, List<S
     public enum ScopeKind { DOCUMENT, ALL_BOOKINGS, BOOKINGS }
     public record Scope(ScopeKind kind, List<Integer> bookings) { public Scope { bookings=copy(bookings); } }
     /** Text is the referenced quotations, not a generated paraphrase/obligation qualification. */
-    public record Clause(int index, ClauseKind kind, SemanticFact.Status status, SemanticAssertionV3.Conditionality conditionality, List<Integer> sources,
+    public record Clause(int index, ClauseKind kind, BookingFact.Status status, SemanticAssertionV3.Conditionality conditionality, List<Integer> sources,
             Fact<Scope> applicability, List<Integer> conditionSources, List<Integer> qualificationSources,
             String uncertainty) {
         public Clause { sources=copy(sources); conditionSources=copy(conditionSources); qualificationSources=copy(qualificationSources); }

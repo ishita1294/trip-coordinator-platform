@@ -29,8 +29,8 @@ public final class NativeScheduleClarification {
             JsonMapper mapper,DocumentAiInput source) {
         var p=parse(value,mapper);var row=base.bookings().get(index);var bindings=new HashMap<String,ScheduleBinding>();
         for(var claim:p.claims())if(claim==null || claim.scheduleId()==null || claim.binding()==null
-                || claim.binding().timezone()==null || claim.binding().timezone().status()!=SemanticFact.Status.CLEAR
-                || claim.binding().role()==null || claim.binding().role().status()!=SemanticFact.Status.CLEAR
+                || claim.binding().timezone()==null || claim.binding().timezone().status()!=BookingFact.Status.CLEAR
+                || claim.binding().role()==null || claim.binding().role().status()!=BookingFact.Status.CLEAR
                 || bindings.putIfAbsent(claim.scheduleId(),claim.binding())!=null)
             throw TourCorrectionException.invalid("Supply one explicit timezone and role for each existing schedule claim.");
         if(!bindings.keySet().equals(new HashSet<>(row.original().schedules().stream().map(ScheduleClaim::id).toList())))
