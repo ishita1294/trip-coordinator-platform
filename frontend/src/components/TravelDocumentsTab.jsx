@@ -3,10 +3,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { readResponse, requestUploadUrl, uploadToS3, completeUpload } from '../api/travelDocumentsApi';
 import {
-  segmentFields, formatTimestamp, isComplete, isHistorical, displayValue,
-  isAttractionTour, isCompleteAttractionTour,
+  segmentFields,
+  formatTimestamp,
+  isComplete,
+  isHistorical,
+  displayValue,
+  isAttractionTour,
+  isCompleteAttractionTour,
 } from '../utils/travelDocumentUtils';
 
+/**
+ * The Travel Documents tab of a trip: lets members upload travel documents, shows their processing status, and opens the AI-read bookings
+ * for review and confirmation.
+ */
 function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
   const baseUrl = `/api/trips/${tripId}/documents`;
   const [documents, setDocuments] = useState([]);
@@ -36,9 +45,9 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
     documentListController.current = { baseUrl, controller };
     setLoading(true);
     apiFetch(baseUrl, { signal: controller.signal })
-      .then((response) => readResponse(response, 'Unable to load documents.'))
-      .then((data) => setDocuments(Array.isArray(data) ? data : []))
-      .catch((requestError) => {
+      .then(response => readResponse(response, 'Unable to load documents.'))
+      .then(data => setDocuments(Array.isArray(data) ? data : []))
+      .catch(requestError => {
         if (!controller.signal.aborted) setError(requestError.message);
       })
       .finally(() => {
@@ -56,7 +65,9 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
     reviewDialog.current.showModal();
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = previousOverflow; };
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
   }, [reviewOpen]);
 
   const refreshDocuments = useCallback(async () => {
@@ -64,12 +75,15 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
     if (selection?.baseUrl !== baseUrl) return;
     // Serialize polling and action refreshes; each action still gets a fresh request.
     while (documentRefresh.current) {
-      try { await documentRefresh.current; } catch { /* The originating caller handles its error. */ }
+      try {
+        await documentRefresh.current;
+      } catch {
+        /* The originating caller handles its error. */
+      }
     }
     if (selection.controller.signal.aborted) return;
     const request = (async () => {
-      const data = await readResponse(await apiFetch(baseUrl, { signal: selection.controller.signal }),
-        'Unable to refresh documents.');
+      const data = await readResponse(await apiFetch(baseUrl, { signal: selection.controller.signal }), 'Unable to refresh documents.');
       if (!selection.controller.signal.aborted) setDocuments(Array.isArray(data) ? data : []);
     })();
     documentRefresh.current = request;
@@ -80,8 +94,7 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
     }
   }, [baseUrl]);
 
-  const hasActiveDocuments = documents.some((document) =>
-    ['QUEUED', 'PROCESSING'].includes(document.processingStatus));
+  const hasActiveDocuments = documents.some(document => ['QUEUED', 'PROCESSING'].includes(document.processingStatus));
 
   useEffect(() => {
     if (!hasActiveDocuments) return;
@@ -89,8 +102,7 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
     let timer;
     async function poll() {
       try {
-        const changingStatus = [...pendingActions.current].some((action) =>
-          action.startsWith('process-') || action === 'confirm');
+        const changingStatus = [...pendingActions.current].some(action => action.startsWith('process-') || action === 'confirm');
         if (!documentRefresh.current && !changingStatus) await refreshDocuments();
       } catch (requestError) {
         if (!stopped) console.warn('Unable to refresh document processing status:', requestError.message);
@@ -99,7 +111,10 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
       }
     }
     timer = setTimeout(poll, 2500);
-    return () => { stopped = true; clearTimeout(timer); };
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
   }, [hasActiveDocuments, refreshDocuments]);
 
   function clearMessages() {
@@ -107,7 +122,7 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
     setError('');
     setMessage('');
     setReviewError('');
-    setReviewState((current) => current === 'ERROR' ? 'IDLE' : current);
+    setReviewState(current => (current === 'ERROR' ? 'IDLE' : current));
   }
 
   function closeReview() {
@@ -115,7 +130,7 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
     setReviewState('IDLE');
     setSelectedDocumentId(null);
     setReviewError('');
-    setActionErrors((current) => ({ ...current, confirm: '' }));
+    setActionErrors(current => ({ ...current, confirm: '' }));
     setProposal([]);
     setTripType(null);
     setMembers([]);
@@ -129,8 +144,7 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
     const version = reviewVersion.current;
     setReviewState('LOADING');
     try {
-      const data = await readResponse(
-        await apiFetch(`${baseUrl}/${documentId}/extraction`), 'Unable to load document for review.');
+      const data = await readResponse(await apiFetch(`${baseUrl}/${documentId}/extraction`), 'Unable to load document for review.');
       if (version !== reviewVersion.current) return;
       if (data?.documentId !== documentId) {
         throw new Error('The server returned a different document than requested.');
@@ -143,21 +157,24 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
       if (!Array.isArray(groups)) {
         throw new Error('Unable to review this document. Reprocess it and try again.');
       }
-      if (tour && documents.find((document) => document.id === documentId)?.processingStatus !== 'PROCESSED') {
+      if (tour && documents.find(document => document.id === documentId)?.processingStatus !== 'PROCESSED') {
         const [trip, tripMembers] = await Promise.all([
-          apiFetch(`/api/trips/${tripId}`).then((response) => readResponse(response, 'Unable to load trip.')),
-          apiFetch(`/api/trips/${tripId}/members`).then((response) => readResponse(response, 'Unable to load trip members.')),
+          apiFetch(`/api/trips/${tripId}`).then(response => readResponse(response, 'Unable to load trip.')),
+          apiFetch(`/api/trips/${tripId}/members`).then(response => readResponse(response, 'Unable to load trip members.')),
         ]);
         if (version !== reviewVersion.current) return;
         setTripType(trip.tripType);
         setMembers(Array.isArray(tripMembers) ? tripMembers : []);
       }
       // Keep incomplete proposals visible; all extracted facts stay read-only.
-      setProposal(tour ? groups.map((booking) => booking ?? {}) : groups.map((group) => ({
-        ...group,
-        segments: Array.isArray(group?.segments)
-          ? group.segments.map((segment) => segment ?? {}) : [],
-      })));
+      setProposal(
+        tour
+          ? groups.map(booking => booking ?? {})
+          : groups.map(group => ({
+              ...group,
+              segments: Array.isArray(group?.segments) ? group.segments.map(segment => segment ?? {}) : [],
+            }))
+      );
       setReviewState('READY');
     } catch (requestError) {
       if (version !== reviewVersion.current) return;
@@ -169,17 +186,18 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
   async function runAction(action, callback) {
     if (pendingActions.current.has(action)) return;
     pendingActions.current.add(action);
-    setBusy((current) => ({ ...current, [action]: true }));
+    setBusy(current => ({ ...current, [action]: true }));
     clearMessages();
     try {
       await callback();
     } catch (requestError) {
-      setActionErrors((current) => ({
-        ...current, [action]: requestError.message || 'Unable to complete this action.',
+      setActionErrors(current => ({
+        ...current,
+        [action]: requestError.message || 'Unable to complete this action.',
       }));
     } finally {
       pendingActions.current.delete(action);
-      setBusy((current) => ({ ...current, [action]: false }));
+      setBusy(current => ({ ...current, [action]: false }));
     }
   }
 
@@ -205,25 +223,29 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
   function processDocument(documentId) {
     closeReview();
     runAction(`process-${documentId}`, async () => {
-      setQueueRequests((current) => ({ ...current, [documentId]: true }));
+      setQueueRequests(current => ({ ...current, [documentId]: true }));
       let data;
       try {
-        data = await readResponse(
-          await apiFetch(`${baseUrl}/${documentId}/process`, { method: 'POST' }),
-          'Unable to process document.');
+        data = await readResponse(await apiFetch(`${baseUrl}/${documentId}/process`, { method: 'POST' }), 'Unable to process document.');
         if (data?.documentId !== documentId) {
           throw new Error('The server returned a processing result for a different document.');
         }
       } catch (requestError) {
-        setQueueRequests((current) => ({ ...current, [documentId]: false }));
+        setQueueRequests(current => ({ ...current, [documentId]: false }));
         // Refresh document status without hiding the original queueing request error.
-        try { await refreshDocuments(); } catch { /* The processing error remains the relevant failure. */ }
+        try {
+          await refreshDocuments();
+        } catch {
+          /* The processing error remains the relevant failure. */
+        }
         throw requestError;
       }
-      setQueueRequests((current) => ({ ...current, [documentId]: false }));
-      setDocuments((current) => current.map((document) => document.id === documentId
-        ? { ...document, processingStatus: data.processingStatus, documentType: data.documentType }
-        : document));
+      setQueueRequests(current => ({ ...current, [documentId]: false }));
+      setDocuments(current =>
+        current.map(document =>
+          document.id === documentId ? { ...document, processingStatus: data.processingStatus, documentType: data.documentType } : document
+        )
+      );
       await refreshDocuments();
       // Review stays closed; the user explicitly opens the new current proposal.
     });
@@ -232,23 +254,29 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
   function confirm(event) {
     event.preventDefault();
     if (selectedDocumentId == null || reviewState !== 'READY' || !complete) {
-      setActionErrors((current) => ({ ...current, confirm: 'Open a document for review before confirming.' }));
+      setActionErrors(current => ({ ...current, confirm: 'Open a document for review before confirming.' }));
       return;
     }
     if (historical || (tour && tripType === 'GROUP' && participantIds.length === 0)) return;
     const documentId = selectedDocumentId;
     runAction('confirm', async () => {
-      await readResponse(await apiFetch(`${baseUrl}/${documentId}/confirm`, {
-        method: 'POST',
-        ...(tour ? {
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ participantIds }),
-        } : {}),
-      }), tour ? 'Unable to confirm attraction/tour booking.' : 'Unable to confirm flight reservation.');
+      await readResponse(
+        await apiFetch(`${baseUrl}/${documentId}/confirm`, {
+          method: 'POST',
+          ...(tour
+            ? {
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ participantIds }),
+              }
+            : {}),
+        }),
+        tour ? 'Unable to confirm attraction/tour booking.' : 'Unable to confirm flight reservation.'
+      );
       const successMessage = tour ? 'Attraction/tour reservation saved' : 'Flight reservation saved';
       setMessage(successMessage);
-      setDocuments((current) => current.map((document) => document.id === documentId
-        ? { ...document, processingStatus: 'PROCESSED' } : document));
+      setDocuments(current =>
+        current.map(document => (document.id === documentId ? { ...document, processingStatus: 'PROCESSED' } : document))
+      );
       closeReview();
       try {
         await refreshDocuments();
@@ -256,178 +284,286 @@ function TravelDocumentsTab({ tripId, onCommitmentSaved }) {
         setError(`${successMessage}, but the document list could not be refreshed: ${refreshError.message}`);
       }
       if (tour && onCommitmentSaved) {
-        try { await onCommitmentSaved(); } catch (refreshError) {
+        try {
+          await onCommitmentSaved();
+        } catch (refreshError) {
           setError(`${successMessage}, but the itinerary could not be refreshed: ${refreshError.message}`);
         }
       }
     });
   }
 
-  const tour = isAttractionTour(documents.find((document) => document.id === selectedDocumentId)?.documentType);
+  const tour = isAttractionTour(documents.find(document => document.id === selectedDocumentId)?.documentType);
   const complete = tour ? isCompleteAttractionTour(proposal) : isComplete(proposal);
   const historical = !tour && isHistorical(proposal);
-  const selectedDocument = documents.find((document) => document.id === selectedDocumentId);
+  const selectedDocument = documents.find(document => document.id === selectedDocumentId);
   const readOnly = selectedDocument?.processingStatus === 'PROCESSED';
-  const statusLabels = { UPLOADED: 'Uploaded', PROCESSING: 'Processing...',
-    REVIEW_REQUIRED: 'Review required', FAILED: 'Processing failed', PROCESSED: 'Processed', QUEUED: 'Queued'};
+  const statusLabels = {
+    UPLOADED: 'Uploaded',
+    PROCESSING: 'Processing...',
+    REVIEW_REQUIRED: 'Review required',
+    FAILED: 'Processing failed',
+    PROCESSED: 'Processed',
+    QUEUED: 'Queued',
+  };
 
   return (
     <section className="travel-documents" aria-label="Travel Documents">
       <form className="document-upload" onSubmit={upload}>
         <label htmlFor="travel-document-file">Upload PDF, JPEG, or PNG</label>
-        <input id="travel-document-file" ref={fileInput} type="file"
-               accept="application/pdf,image/jpeg,image/png" disabled={!!busy.upload || !!busy.confirm}
-               onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+        <input
+          id="travel-document-file"
+          ref={fileInput}
+          type="file"
+          accept="application/pdf,image/jpeg,image/png"
+          disabled={!!busy.upload || !!busy.confirm}
+          onChange={event => setFile(event.target.files?.[0] ?? null)}
+        />
         <button type="submit" disabled={!file || !!busy.upload || !!busy.confirm}>
           {busy.upload ? 'Uploading...' : 'Upload'}
         </button>
       </form>
 
-      {message && <p className="document-success" role="status">{message}</p>}
-      {error && <p className="status-message error" role="alert">{error}</p>}
-      {actionErrors.upload && <p className="status-message error" role="alert">{actionErrors.upload}</p>}
+      {message && (
+        <p className="document-success" role="status">
+          {message}
+        </p>
+      )}
+      {error && (
+        <p className="status-message error" role="alert">
+          {error}
+        </p>
+      )}
+      {actionErrors.upload && (
+        <p className="status-message error" role="alert">
+          {actionErrors.upload}
+        </p>
+      )}
       {loading && <p className="status-message">Loading documents...</p>}
 
       <div className="document-list">
         {!loading && documents.length === 0 && <p className="empty-message">No documents uploaded.</p>}
-        {documents.map((document) => {
+        {documents.map(document => {
           const processing = !!busy[`process-${document.id}`] || document.processingStatus === 'PROCESSING';
           return (
             <article className="document-card" key={document.id}>
               <h2>{document.originalFileName}</h2>
               <p className="document-status">
-                {queueRequests[document.id] ? 'Queuing...'
-                  : statusLabels[document.processingStatus] || 'Unknown status'}
+                {queueRequests[document.id] ? 'Queuing...' : statusLabels[document.processingStatus] || 'Unknown status'}
               </p>
               <p className="document-status">Uploaded {formatTimestamp(document.uploadedAt)}</p>
               <div className="document-actions">
                 {!processing && document.processingStatus === 'REVIEW_REQUIRED' && (
-                  <button type="button" disabled={!!busy.confirm
-                    || (selectedDocumentId === document.id && reviewState === 'LOADING')}
-                          onClick={() => loadCurrentExtraction(document.id)}>Review extracted details</button>
+                  <button
+                    type="button"
+                    disabled={!!busy.confirm || (selectedDocumentId === document.id && reviewState === 'LOADING')}
+                    onClick={() => loadCurrentExtraction(document.id)}
+                  >
+                    Review extracted details
+                  </button>
                 )}
                 {document.processingStatus === 'PROCESSED' && (
-                  <button type="button" disabled={!!busy.confirm
-                    || (selectedDocumentId === document.id && reviewState === 'LOADING')}
-                          onClick={() => loadCurrentExtraction(document.id)}>View details</button>
+                  <button
+                    type="button"
+                    disabled={!!busy.confirm || (selectedDocumentId === document.id && reviewState === 'LOADING')}
+                    onClick={() => loadCurrentExtraction(document.id)}
+                  >
+                    View details
+                  </button>
                 )}
                 {!processing && ['UPLOADED', 'FAILED', 'REVIEW_REQUIRED'].includes(document.processingStatus) && (
-                  <button type="button" disabled={!!busy.confirm}
-                          onClick={() => processDocument(document.id)}>
-                    {document.processingStatus === 'REVIEW_REQUIRED' ? 'Reprocess'
-                      : document.processingStatus === 'FAILED' ? 'Retry' : 'Process'}
+                  <button type="button" disabled={!!busy.confirm} onClick={() => processDocument(document.id)}>
+                    {document.processingStatus === 'REVIEW_REQUIRED'
+                      ? 'Reprocess'
+                      : document.processingStatus === 'FAILED'
+                        ? 'Retry'
+                        : 'Process'}
                   </button>
                 )}
               </div>
-              {actionErrors[`process-${document.id}`] && <p className="status-message error" role="alert">
-                {actionErrors[`process-${document.id}`]}
-              </p>}
+              {actionErrors[`process-${document.id}`] && (
+                <p className="status-message error" role="alert">
+                  {actionErrors[`process-${document.id}`]}
+                </p>
+              )}
             </article>
           );
         })}
       </div>
 
       {reviewOpen && (
-        <dialog ref={reviewDialog} className="document-review-modal"
-                aria-labelledby="document-review-title"
-                onCancel={(event) => {
-                  event.preventDefault();
-                  if (!busy.confirm) closeReview();
-                }}
-                onClick={(event) => {
-                  if (event.target !== event.currentTarget || busy.confirm) return;
-                  const bounds = event.currentTarget.getBoundingClientRect();
-                  if (event.clientX < bounds.left || event.clientX > bounds.right
-                    || event.clientY < bounds.top || event.clientY > bounds.bottom) closeReview();
-                }}>
+        <dialog
+          ref={reviewDialog}
+          className="document-review-modal"
+          aria-labelledby="document-review-title"
+          onCancel={event => {
+            event.preventDefault();
+            if (!busy.confirm) closeReview();
+          }}
+          onClick={event => {
+            if (event.target !== event.currentTarget || busy.confirm) return;
+            const bounds = event.currentTarget.getBoundingClientRect();
+            if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)
+              closeReview();
+          }}
+        >
           <header className="document-review-header">
             <div>
               <h2 id="document-review-title">{readOnly ? (tour ? 'Booking details' : 'Flight details') : 'Review extracted details'}</h2>
               {!readOnly && <p>{selectedDocument?.originalFileName}</p>}
             </div>
-            <button type="button" aria-label="Close review" disabled={!!busy.confirm}
-                    onClick={closeReview}>×</button>
+            <button type="button" aria-label="Close review" disabled={!!busy.confirm} onClick={closeReview}>
+              ×
+            </button>
           </header>
           <div className="document-review-body">
-            {reviewState === 'LOADING' && <p className="status-message" role="status">Loading...</p>}
-            {reviewState === 'ERROR' && reviewError && <p className="status-message error" role="alert">{reviewError}</p>}
+            {reviewState === 'LOADING' && (
+              <p className="status-message" role="status">
+                Loading...
+              </p>
+            )}
+            {reviewState === 'ERROR' && reviewError && (
+              <p className="status-message error" role="alert">
+                {reviewError}
+              </p>
+            )}
             {reviewState === 'READY' && (selectedDocument?.processingStatus === 'REVIEW_REQUIRED' || readOnly) && (
               <form className="flight-review" onSubmit={confirm}>
-                {!readOnly && <p>Review the AI extraction before saving it exactly as shown.
-                  If details are missing or wrong, reprocess the document.</p>}
-                {!readOnly && !complete && <p className="status-message error" role="alert">
-                  Some required {tour ? 'booking' : 'flight'} details could not be extracted from this document.
-                </p>}
-                {!readOnly && historical && <p className="status-message error" role="alert">
-                  This flight reservation is historical and cannot be saved.
-                </p>}
-                {tour ? proposal.map((booking, bookingIndex) => (
-                  <fieldset className="reservation-block" key={bookingIndex}>
-                    <legend>Booking {bookingIndex + 1}</legend>
-                    <div className="document-form-grid">
-                      {[
-                        ['name', 'Activity / tour'], ['bookingReference', 'Booking reference'],
-                        ['provider', 'Provider / operator'], ['startDate', 'Start date'],
-                        ['startTime', 'Start time'], ['endDate', 'Documented end date'],
-                        ['endTime', 'Documented end time'], ['durationMinutes', 'Documented duration (minutes)'],
-                        ['timezone', 'Documented timezone'], ['instructions', 'Instructions'],
-                      ].map(([key, label]) => (
-                        <div key={key}>{label}<br /><span>{displayValue(key, booking[key])}</span></div>
-                      ))}
-                      {[
-                        ['name', 'Meeting / entry point'], ['address', 'Meeting / entry address'],
-                        ['latitude', 'Latitude'], ['longitude', 'Longitude'],
-                      ].map(([key, label]) => (
-                        <div key={key}>{label}<br /><span>{displayValue(key, booking.meetingPoint?.[key])}</span></div>
-                      ))}
-                    </div>
-                    {(!booking.endDate || !booking.endTime) && <p>
-                      {booking.durationMinutes != null
-                        ? 'The planned end will be calculated from the documented duration.'
-                        : 'Open-ended visit: no complete end date/time or duration was extracted.'}
-                    </p>}
-                  </fieldset>
-                )) : proposal.map((group, groupIndex) => (
-                  <fieldset className="reservation-block" key={groupIndex}>
-                    <legend>Reservation {groupIndex + 1}</legend>
-                    <div className="document-form-grid">
-                      <div>Confirmation number<br /><span>{displayValue('confirmationNumber', group.confirmationNumber)}</span></div>
-                      <div>Type<br /><span>{displayValue('confirmationNumberType', group.confirmationNumberType)}</span></div>
-                    </div>
-                    {group.segments.length === 0 && <p>Segments: Not extracted</p>}
-                    {group.segments.map((segment, segmentIndex) => (
-                      <div className="segment-block" key={segmentIndex}>
-                        <h3>Segment {segmentIndex + 1}</h3>
+                {!readOnly && (
+                  <p>
+                    Review the AI extraction before saving it exactly as shown. If details are missing or wrong, reprocess the document.
+                  </p>
+                )}
+                {!readOnly && !complete && (
+                  <p className="status-message error" role="alert">
+                    Some required {tour ? 'booking' : 'flight'} details could not be extracted from this document.
+                  </p>
+                )}
+                {!readOnly && historical && (
+                  <p className="status-message error" role="alert">
+                    This flight reservation is historical and cannot be saved.
+                  </p>
+                )}
+                {tour
+                  ? proposal.map((booking, bookingIndex) => (
+                      <fieldset className="reservation-block" key={bookingIndex}>
+                        <legend>Booking {bookingIndex + 1}</legend>
                         <div className="document-form-grid">
-                          {segmentFields.map(([key, label]) => (
-                            <div key={key}>{label}<br /><span>{displayValue(key, segment[key])}</span></div>
+                          {[
+                            ['name', 'Activity / tour'],
+                            ['bookingReference', 'Booking reference'],
+                            ['provider', 'Provider / operator'],
+                            ['startDate', 'Start date'],
+                            ['startTime', 'Start time'],
+                            ['endDate', 'Documented end date'],
+                            ['endTime', 'Documented end time'],
+                            ['durationMinutes', 'Documented duration (minutes)'],
+                            ['timezone', 'Documented timezone'],
+                            ['instructions', 'Instructions'],
+                          ].map(([key, label]) => (
+                            <div key={key}>
+                              {label}
+                              <br />
+                              <span>{displayValue(key, booking[key])}</span>
+                            </div>
+                          ))}
+                          {[
+                            ['name', 'Meeting / entry point'],
+                            ['address', 'Meeting / entry address'],
+                            ['latitude', 'Latitude'],
+                            ['longitude', 'Longitude'],
+                          ].map(([key, label]) => (
+                            <div key={key}>
+                              {label}
+                              <br />
+                              <span>{displayValue(key, booking.meetingPoint?.[key])}</span>
+                            </div>
                           ))}
                         </div>
-                      </div>
+                        {(!booking.endDate || !booking.endTime) && (
+                          <p>
+                            {booking.durationMinutes != null
+                              ? 'The planned end will be calculated from the documented duration.'
+                              : 'Open-ended visit: no complete end date/time or duration was extracted.'}
+                          </p>
+                        )}
+                      </fieldset>
+                    ))
+                  : proposal.map((group, groupIndex) => (
+                      <fieldset className="reservation-block" key={groupIndex}>
+                        <legend>Reservation {groupIndex + 1}</legend>
+                        <div className="document-form-grid">
+                          <div>
+                            Confirmation number
+                            <br />
+                            <span>{displayValue('confirmationNumber', group.confirmationNumber)}</span>
+                          </div>
+                          <div>
+                            Type
+                            <br />
+                            <span>{displayValue('confirmationNumberType', group.confirmationNumberType)}</span>
+                          </div>
+                        </div>
+                        {group.segments.length === 0 && <p>Segments: Not extracted</p>}
+                        {group.segments.map((segment, segmentIndex) => (
+                          <div className="segment-block" key={segmentIndex}>
+                            <h3>Segment {segmentIndex + 1}</h3>
+                            <div className="document-form-grid">
+                              {segmentFields.map(([key, label]) => (
+                                <div key={key}>
+                                  {label}
+                                  <br />
+                                  <span>{displayValue(key, segment[key])}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </fieldset>
                     ))}
-                  </fieldset>
-                ))}
                 {!readOnly && tour && tripType === 'GROUP' && (
                   <fieldset className="reservation-block">
                     <legend>Participants for these bookings</legend>
                     <p>Select the trip members attending. At least one participant is required.</p>
-                    {members.map((member) => (
+                    {members.map(member => (
                       <label key={member.id}>
-                        <input type="checkbox" checked={participantIds.includes(member.id)} disabled={!!busy.confirm}
-                          onChange={(event) => setParticipantIds((current) => event.target.checked
-                            ? [...current, member.id] : current.filter((id) => id !== member.id))} />
+                        <input
+                          type="checkbox"
+                          checked={participantIds.includes(member.id)}
+                          disabled={!!busy.confirm}
+                          onChange={event =>
+                            setParticipantIds(current =>
+                              event.target.checked ? [...current, member.id] : current.filter(id => id !== member.id)
+                            )
+                          }
+                        />
                         {member.user?.name || `Member ${member.id}`}
                       </label>
                     ))}
                   </fieldset>
                 )}
-                {!readOnly && complete && <button type="submit" disabled={!!busy.confirm || historical
-                  || (tour && tripType === 'GROUP' && participantIds.length === 0)}>
-                  {busy.confirm ? 'Confirming...' : 'Confirm & Save'}
-                </button>}
-                {!readOnly && <button type="button" disabled={!!busy.confirm || !!busy[`process-${selectedDocumentId}`]}
-                        onClick={() => processDocument(selectedDocumentId)}>Reprocess</button>}
-                {actionErrors.confirm && <p className="status-message error" role="alert">{actionErrors.confirm}</p>}
+                {!readOnly && complete && (
+                  <button
+                    type="submit"
+                    disabled={!!busy.confirm || historical || (tour && tripType === 'GROUP' && participantIds.length === 0)}
+                  >
+                    {busy.confirm ? 'Confirming...' : 'Confirm & Save'}
+                  </button>
+                )}
+                {!readOnly && (
+                  <button
+                    type="button"
+                    disabled={!!busy.confirm || !!busy[`process-${selectedDocumentId}`]}
+                    onClick={() => processDocument(selectedDocumentId)}
+                  >
+                    Reprocess
+                  </button>
+                )}
+                {actionErrors.confirm && (
+                  <p className="status-message error" role="alert">
+                    {actionErrors.confirm}
+                  </p>
+                )}
               </form>
             )}
           </div>
