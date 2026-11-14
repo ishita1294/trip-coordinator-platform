@@ -5,6 +5,7 @@ import com.openai.core.Timeout;
 import java.io.InterruptedIOException;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
+import java.util.concurrent.Callable;
 import java.util.function.IntSupplier;
 
 /** Bounds document requests and leaves time to save the outcome before Lambda stops execution. */
@@ -16,10 +17,30 @@ public final class DocumentProcessingBudget implements AutoCloseable {
     private static final ThreadLocal<IntSupplier> REMAINING = new ThreadLocal<>();
     private final IntSupplier previous;
 
+    /** Environment setting for the extraction request timeout; unset keeps the Lambda-sized default. */
+    public static final String EXTRACTION_TIMEOUT_ENV = "DOCUMENT_PROCESSING_EXTRACTION_TIMEOUT_SECONDS";
+    static final int DEFAULT_EXTRACTION_SECONDS = 90;
+    static final int MIN_EXTRACTION_SECONDS = 30;
+    static final int MAX_EXTRACTION_SECONDS = LEASE_SECONDS;
+
+    /** The request limit for each provider stage, in seconds. Classification gets 30 so a slow reply is not mistaken for a failure. */
     public enum Stage {
-        CLASSIFICATION(20), EXTRACTION(90);
+        CLASSIFICATION(30), EXTRACTION(extractionSeconds(System.getenv(EXTRACTION_TIMEOUT_ENV)));
         private final int seconds;
         Stage(int seconds) { this.seconds = seconds; }
+    }
+
+    /** Parses the extraction timeout; a value outside 30 seconds to the lease length is refused, never clamped. */
+    static int extractionSeconds(String raw) {
+        if (raw == null || raw.isBlank()) return DEFAULT_EXTRACTION_SECONDS;
+        try {
+            int seconds = Integer.parseInt(raw.trim());
+            if (seconds >= MIN_EXTRACTION_SECONDS && seconds <= MAX_EXTRACTION_SECONDS) return seconds;
+        } catch (NumberFormatException ignored) {
+            // reported below without echoing the value
+        }
+        throw new IllegalStateException(EXTRACTION_TIMEOUT_ENV + " must be " + MIN_EXTRACTION_SECONDS + " to "
+                + MAX_EXTRACTION_SECONDS + " seconds");
     }
 
     private DocumentProcessingBudget(IntSupplier remaining) {
@@ -30,6 +51,34 @@ public final class DocumentProcessingBudget implements AutoCloseable {
     /** Uses Lambda's live remaining time, including time already spent starting Spring. */
     public static DocumentProcessingBudget forInvocation(IntSupplier remaining) {
         return new DocumentProcessingBudget(remaining);
+    }
+
+    /**
+     * Binds the caller's current remaining-time supplier (if any) to the task, whichever thread runs it. The budget is
+     * thread-local, so a task handed to an executor would otherwise see no invocation deadline. The supplier is read
+     * live when each request starts, and the worker thread's own scope is restored afterwards.
+     */
+    public static <T> Callable<T> propagate(Callable<T> task) {
+        IntSupplier captured = REMAINING.get();
+        return () -> {
+            try (var ignored = forInvocation(captured)) {
+                return task.call();
+            }
+        };
+    }
+
+    /** Time a provider call could still use after keeping the persistence reserve; unbounded outside an invocation. */
+    public static long usableExtractionMillis() {
+        var remaining = REMAINING.get();
+        return remaining == null ? Long.MAX_VALUE : (long) remaining.getAsInt() - PERSISTENCE_RESERVE_SECONDS * 1000L;
+    }
+
+    /**
+     * Longest a call started now can keep running: the extraction cap, clipped to the usable invocation time. A caller
+     * that waits for in-flight calls to end can bound its wait by this, because each call's own timeout is no longer.
+     */
+    public static long extractionJoinMillis() {
+        return Math.max(0, Math.min(Stage.EXTRACTION.seconds * 1000L, usableExtractionMillis()));
     }
 
     public static RequestOptions requestOptions(Stage stage) {
