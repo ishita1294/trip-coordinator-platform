@@ -22,12 +22,17 @@ final class ReadingAssertionValidator {
         }
     }
 
+    /** Size of the supplemental list the way the limit is checked, so other code can measure it identically. */
+    static int serializedCharacters(List<SupplementalReadingFact> supplemental) {
+        return MAPPER.writeValueAsString(supplemental).length();
+    }
+
     void validateSupplemental(TourReading extraction, Map<Reference, ReadingFact<?>> allFacts,
             TourReadingValidator factValidator) {
         var supplemental = extraction.supplementalFacts();
         require(supplemental != null && supplemental.size() <= MAX_FACTS, "Supplemental fact count exceeds limit or is missing");
         optional(extraction.supplementalCoverageWarning(),500,"Supplemental coverage warning");
-        require(MAPPER.writeValueAsString(supplemental).length() <= MAX_SERIALIZED_CHARACTERS,
+        require(serializedCharacters(supplemental) <= MAX_SERIALIZED_CHARACTERS,
                 "Supplemental serialized character budget exceeded");
         var duplicates = new HashSet<Object>();
         for (var item : supplemental) {
