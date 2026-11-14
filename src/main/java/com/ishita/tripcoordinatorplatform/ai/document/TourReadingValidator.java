@@ -26,39 +26,53 @@ public final class TourReadingValidator {
         var allFacts = new LinkedHashMap<Reference, ReadingFact<?>>();
         var assertions = new ReadingAssertionValidator();
         for (int i = 0; i < extraction.bookings().size(); i++) {
-            var b = extraction.bookings().get(i);
-            require(b != null && b.bookingIndex() == i && b.conditions() != null, "Booking order/identity mismatch");
-            var facts = fields(b);
-            allFacts.putAll(facts);
-            for (var entry : facts.entrySet()) {
-                try {
-                    validateFact(entry.getValue(), facts);
-                    for (var e : entry.getValue().evidence()) require(e.bookingIndex() != null && e.bookingIndex() == i,
-                            "Evidence booking association is invalid");
-                }
-                catch (InvalidDocumentExtractionException e) { throw at(entry.getKey(), e); }
-            }
-            for (var ref : facts.keySet()) visit(ref, facts, new HashSet<>(), new HashSet<>());
-            assertions.validateBookingConditions(b);
-            // Reuse only unchanged typed/status/evidence/location/condition rules, not v2 derivation or timing semantics.
-            new TourBookingFactsValidator().validateBooking(b.shape(), false);
-            if (b.timezone().value() != null) canonicalZone(b.timezone().value());
-            b.timezone().alternatives().forEach(this::canonicalZone);
-            for (var entry : facts.entrySet()) {
-                if (entry.getValue().interpretation().calculation() != null) {
-                    try { verified.put(entry.getKey(), calculate(entry.getKey(), entry.getValue(), facts, b)); }
-                    catch (InvalidDocumentExtractionException e) { throw at(entry.getKey(), e); }
-                }
-            }
-            ReadingTimeRule.validate(b, this, facts);
-            if (b.requiredArrival().status() == Status.CLEAR || b.arrivalLeadMinutes().status() == Status.CLEAR)
-                require(b.temporalConstraints().stream().anyMatch(c -> c.target() == ReadingTimeRule.Target.REQUIRED_ARRIVAL),
-                        "Arrival semantics must be stated explicitly");
-            consistency(b);
+            var checked = validateBooking(extraction.bookings().get(i), i, assertions);
+            allFacts.putAll(checked.facts());
+            verified.putAll(checked.verified());
         }
         ReadingBookingLifecycle.validate(extraction,this);
         assertions.validateSupplemental(extraction, allFacts, this);
         return new Validation(verified);
+    }
+
+    /** Facts and verified calculations of one booking that passed its own (non cross-booking) rules. */
+    record CheckedBooking(Map<Reference, ReadingFact<?>> facts, Map<Reference, Verification> verified) {}
+
+    /**
+     * Every rule that depends on a single booking. Replacement links, supplemental scope and other cross-booking
+     * rules stay in {@link #validate}, because they need the complete booking list.
+     */
+    CheckedBooking validateBooking(TourReading.Booking b, int expectedIndex,
+            ReadingAssertionValidator assertions) {
+        require(b != null && b.bookingIndex() == expectedIndex && b.conditions() != null, "Booking order/identity mismatch");
+        var verified = new LinkedHashMap<Reference, Verification>();
+        var facts = fields(b);
+        for (var entry : facts.entrySet()) {
+            try {
+                validateFact(entry.getValue(), facts);
+                for (var e : entry.getValue().evidence()) require(e.bookingIndex() != null && e.bookingIndex() == expectedIndex,
+                        "Evidence booking association is invalid");
+            }
+            catch (InvalidDocumentExtractionException e) { throw at(entry.getKey(), e); }
+        }
+        for (var ref : facts.keySet()) visit(ref, facts, new HashSet<>(), new HashSet<>());
+        assertions.validateBookingConditions(b);
+        // Reuse only unchanged typed/status/evidence/location/condition rules, not v2 derivation or timing semantics.
+        new TourBookingFactsValidator().validateBooking(b.shape(), false);
+        if (b.timezone().value() != null) canonicalZone(b.timezone().value());
+        b.timezone().alternatives().forEach(this::canonicalZone);
+        for (var entry : facts.entrySet()) {
+            if (entry.getValue().interpretation().calculation() != null) {
+                try { verified.put(entry.getKey(), calculate(entry.getKey(), entry.getValue(), facts, b)); }
+                catch (InvalidDocumentExtractionException e) { throw at(entry.getKey(), e); }
+            }
+        }
+        ReadingTimeRule.validate(b, this, facts);
+        if (b.requiredArrival().status() == Status.CLEAR || b.arrivalLeadMinutes().status() == Status.CLEAR)
+            require(b.temporalConstraints().stream().anyMatch(c -> c.target() == ReadingTimeRule.Target.REQUIRED_ARRIVAL),
+                    "Arrival semantics must be stated explicitly");
+        consistency(b);
+        return new CheckedBooking(facts, verified);
     }
 
     void validateFact(ReadingFact<?> f, Map<Reference, ReadingFact<?>> facts) {
