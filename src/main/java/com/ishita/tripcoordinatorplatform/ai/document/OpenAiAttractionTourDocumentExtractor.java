@@ -61,13 +61,24 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
     private final String model;
     private final JsonMapper jsonMapper;
     private final boolean fastProcessingEnabled;
+    private SplitReplyRecorder replyRecorder = SplitReplyRecorder.NONE;
+    private java.util.function.Consumer<CallStats> statsListener = stats -> { };
+    private java.util.function.Consumer<String> rawReplyListener;
+    private final ReasoningEffort extractionReasoningEffort;
+    private volatile String evaluationInstructionSuffix;
 
+    /**
+     * Creates the tour extractor used by the running application. {@code reasoningEffort} says how much the model may think
+     * before answering a tour extraction request: "default" leaves the choice to the provider (today's behaviour), while
+     * a lower level such as "low" is faster but must first pass the gold checks. It never applies to the classifier, which is a separate adapter.
+     */
     @org.springframework.beans.factory.annotation.Autowired
     public OpenAiAttractionTourDocumentExtractor(
             @Value("${app.ai.openai.extraction-model}") String model,
             JsonMapper jsonMapper,
             @Value("${app.ai.openai.api-key:}") String apiKey,
-            @Value("${app.ai.openai.tour-extraction-fast-enabled:${TOUR_EXTRACTION_FAST_ENABLED:false}}") boolean fastProcessingEnabled
+            @Value("${app.ai.openai.tour-extraction-fast-enabled:${TOUR_EXTRACTION_FAST_ENABLED:false}}") boolean fastProcessingEnabled,
+            @Value("${app.ai.openai.extraction-reasoning-effort:default}") String reasoningEffort
     ) {
         if (model == null || model.isBlank()) {
             throw new IllegalArgumentException("OpenAI model is required");
@@ -75,6 +86,7 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
         this.model = model;
         this.jsonMapper = jsonMapper;
         this.fastProcessingEnabled = fastProcessingEnabled;
+        this.extractionReasoningEffort = parseReasoningEffort(reasoningEffort);
         var builder = OpenAIOkHttpClient.builder().fromEnv().maxRetries(0)
                 .timeout(DocumentProcessingBudget.clientTimeout(DocumentProcessingBudget.Stage.EXTRACTION));
         if (apiKey != null && !apiKey.isBlank()) builder.apiKey(apiKey);
@@ -82,7 +94,7 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
     }
 
     public OpenAiAttractionTourDocumentExtractor(String model, JsonMapper mapper, String apiKey) {
-        this(model, mapper, apiKey, false);
+        this(model, mapper, apiKey, false, "default");
     }
 
     OpenAiAttractionTourDocumentExtractor(OpenAIClient client, String model, JsonMapper mapper) {
@@ -90,8 +102,26 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
     }
 
     OpenAiAttractionTourDocumentExtractor(OpenAIClient client, String model, JsonMapper mapper, boolean fastProcessingEnabled) {
+        this(client, model, mapper, fastProcessingEnabled, null);
+    }
+
+    OpenAiAttractionTourDocumentExtractor(OpenAIClient client, String model, JsonMapper mapper, boolean fastProcessingEnabled,
+            ReasoningEffort reasoningEffort) {
         this.client = client; this.model = model; this.jsonMapper = mapper;
         this.fastProcessingEnabled = fastProcessingEnabled;
+        this.extractionReasoningEffort = reasoningEffort;
+    }
+
+    /**
+     * Turns the setting text into a reasoning effort. Blank or "default" means the provider decides (null); only the
+     * four documented levels are accepted, so a typo stops the application at start-up instead of failing every request.
+     */
+    static ReasoningEffort parseReasoningEffort(String text) {
+        if (text == null || text.isBlank() || text.strip().equalsIgnoreCase("default")) return null;
+        String level = text.strip().toLowerCase(java.util.Locale.ROOT);
+        if (!java.util.Set.of("minimal", "low", "medium", "high").contains(level))
+            throw new IllegalArgumentException("Extraction reasoning effort must be default, minimal, low, medium or high");
+        return ReasoningEffort.of(level);
     }
 
     @Override
@@ -120,9 +150,17 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
 
     private com.openai.models.responses.Response readDocument(DocumentAiInput document, String instructions,
             Map<String,Object> schema, String schemaName, ReasoningEffort reasoningEffort) {
-        // Same client, formats, retry policy and usage logging as normal extraction.
         String dataUrl = "data:" + document.contentType() + ";base64,"
                 + Base64.getEncoder().encodeToString(document.content());
+        return send(document, dataUrl, null, instructions, schema, schemaName, reasoningEffort).response();
+    }
+
+    private record Sent(com.openai.models.responses.Response response, CallStats stats) {}
+
+    /** The document part, then an optional trailing text part, so shared prefixes stay identical across calls. */
+    private Sent send(DocumentAiInput document, String dataUrl, String trailingText, String instructions,
+            Map<String,Object> schema, String schemaName, ReasoningEffort reasoningEffort) {
+        // Same client, formats, retry policy and usage logging as normal extraction.
         ResponseInputItem.Message.Builder message = ResponseInputItem.Message.builder()
                 .role(ResponseInputItem.Message.Role.USER);
         if ("application/pdf".equals(document.contentType())) {
@@ -141,10 +179,12 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
         } else {
             throw new IllegalArgumentException("Only PDF, JPEG, and PNG documents are supported");
         }
+        if (trailingText != null)
+            message.addContent(com.openai.models.responses.ResponseInputText.builder().text(trailingText).build());
 
         var paramsBuilder = ResponseCreateParams.builder()
                 .model(model)
-                .instructions(instructions)
+                .instructions(withEvaluationSuffix(instructions, schemaName))
                 .inputOfResponse(List.of(ResponseInputItem.ofMessage(message.build())))
                 .text(ResponseTextConfig.builder()
                         .format(ResponseFormatTextJsonSchemaConfig.builder()
@@ -155,7 +195,9 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
                                 .build())
                         .build());
         // Opt-in comparison only; historical extraction and correction requests keep their settings.
-        if (reasoningEffort != null) paramsBuilder.reasoning(Reasoning.builder().effort(reasoningEffort).build());
+        var effort = reasoningEffort != null ? reasoningEffort
+                : TourReading.STRUCTURED_OUTPUT_NAME.equals(schemaName) ? extractionReasoningEffort : null;
+        if (effort != null) paramsBuilder.reasoning(Reasoning.builder().effort(effort).build());
         // Only the production V3.4 tour request is eligible. Classification, correction
         // assessment and other output schemas retain their existing tier settings.
         boolean requestFast = fastProcessingEnabled
@@ -178,20 +220,73 @@ public class OpenAiAttractionTourDocumentExtractor implements AttractionTourDocu
                     failure.getClass().getSimpleName(), requestedTier);
             throw DocumentProcessingBudget.providerFailure(DocumentProcessingBudget.Stage.EXTRACTION, failure);
         }
-        var usage = response.usage().orElse(null);
-        Long reasoningTokens = usage == null ? null : usage._outputTokensDetails().asKnown()
-                .flatMap(details -> details._reasoningTokens().asKnown()).orElse(null);
-        Long nonReasoningTokens = usage != null && reasoningTokens != null
-                && reasoningTokens >= 0 && reasoningTokens <= usage.outputTokens()
-                ? usage.outputTokens() - reasoningTokens : null;
+        var stats = CallStats.of(model, (System.nanoTime() - started) / 1_000_000, response, requestedTier);
         org.slf4j.LoggerFactory.getLogger(getClass()).info(
-                "document-extraction model={} elapsedMs={} status={} inputTokens={} outputTokens={} reasoningTokens={} nonReasoningOutputTokens={} requestedTier={} actualTier={}",
-                model, (System.nanoTime() - started) / 1_000_000,
-                response.status().map(Object::toString).orElse("MISSING"),
-                usage == null ? null : usage.inputTokens(), usage == null ? null : usage.outputTokens(),
-                reasoningTokens, nonReasoningTokens, requestedTier,
-                response.serviceTier().map(com.openai.models.responses.Response.ServiceTier::asString).orElse("UNKNOWN"));
-        return response;
+                "document-extraction model={} elapsedMs={} status={} inputTokens={} outputTokens={} reasoningTokens={} nonReasoningOutputTokens={} requestedTier={} actualTier={} cachedInputTokens={}",
+                stats.model(), stats.elapsedMs(), stats.status(), stats.inputTokens(), stats.outputTokens(),
+                stats.reasoningTokens(), stats.nonReasoningOutputTokens(), stats.requestedTier(), stats.actualTier(),
+                stats.cachedInputTokens());
+        statsListener.accept(stats);
+        if (rawReplyListener != null) rawReplyListener.accept(PartialExtractionReader.outputText(response));
+        return new Sent(response, stats);
+    }
+
+    @Override
+    public boolean supportsSplitExtraction() { return true; }
+
+    @Override
+    public SplitSource prepareSplitSource(DocumentAiInput document) {
+        return SplitSource.of(document);
+    }
+
+    /** Same schema, model and reasoning rules as the single call; only the instructions suffix and trailing part differ. */
+    @Override
+    public PartialExtraction extractPartialReading(SplitSource source, SplitCallTarget target) {
+        var sent = send(source.input(), source.dataUrl(), target.promptText(), SplitInstructions.INSTRUCTIONS,
+                TourReadingSchema.schema(), TourReading.STRUCTURED_OUTPUT_NAME, null);
+        recordReply(target, sent.response());
+        return PartialExtractionReader.read(sent.response(), sent.stats(), target, source, jsonMapper);
+    }
+
+    /** Optional local debugging hook; before parsing so unusable replies are captured. Never affects extraction. */
+    private void recordReply(SplitCallTarget target, com.openai.models.responses.Response response) {
+        if (replyRecorder == SplitReplyRecorder.NONE) return;
+        try {
+            String status = response.status().map(com.openai.models.responses.ResponseStatus::asString).orElse("MISSING");
+            replyRecorder.record(target, response.id(), status, PartialExtractionReader.outputText(response));
+        } catch (RuntimeException failure) {
+            org.slf4j.LoggerFactory.getLogger(getClass()).warn("Split debug reply dump failed causeClass={}",
+                    failure.getClass().getSimpleName());
+        }
+    }
+
+    /** Evaluation hook: receives the raw reply text of every extraction call, before parsing, on the calling thread. */
+    void setRawReplyListener(java.util.function.Consumer<String> listener) {
+        this.rawReplyListener = listener;
+    }
+
+    /** Evaluation hook: receives the stats of every provider call this adapter completes, on the calling thread. */
+    void setStatsListener(java.util.function.Consumer<CallStats> listener) {
+        this.statsListener = listener == null ? stats -> { } : listener;
+    }
+
+    /**
+     * Evaluation hook: text added to the end of the tour extraction instructions, so a prompt wording can be tried on the
+     * gold documents before it is written into the real instructions. The application never calls it.
+     */
+    void setEvaluationInstructionSuffix(String suffix) {
+        this.evaluationInstructionSuffix = suffix == null || suffix.isBlank() ? null : suffix;
+    }
+
+    /** The instructions as they are, or with the evaluation text added when this is a tour extraction request. */
+    private String withEvaluationSuffix(String instructions, String schemaName) {
+        String suffix = evaluationInstructionSuffix;
+        return suffix != null && TourReading.STRUCTURED_OUTPUT_NAME.equals(schemaName) ? instructions + "\n\n" + suffix : instructions;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setReplyRecorder(SplitReplyRecorder recorder) {
+        this.replyRecorder = recorder == null ? SplitReplyRecorder.NONE : recorder;
     }
 
     /** Uses the V3.4 contract selected by the processing job. */
