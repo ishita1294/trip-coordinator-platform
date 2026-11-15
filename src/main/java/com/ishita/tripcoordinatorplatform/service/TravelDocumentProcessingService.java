@@ -10,7 +10,10 @@ import com.ishita.tripcoordinatorplatform.ai.document.TourExtractionCodec;
 import com.ishita.tripcoordinatorplatform.ai.document.AttractionTourDocumentExtractor;
 import com.ishita.tripcoordinatorplatform.ai.document.AttractionTourExtractionValidator;
 import com.ishita.tripcoordinatorplatform.ai.document.DocumentAiInput;
+import com.ishita.tripcoordinatorplatform.ai.document.BookingInventory;
+import com.ishita.tripcoordinatorplatform.ai.document.ClassificationResult;
 import com.ishita.tripcoordinatorplatform.ai.document.DocumentClassification;
+import com.ishita.tripcoordinatorplatform.ai.document.SplitTourExtractionService;
 import com.ishita.tripcoordinatorplatform.ai.document.DocumentClassifier;
 import com.ishita.tripcoordinatorplatform.ai.document.FlightDocumentExtractor;
 import com.ishita.tripcoordinatorplatform.ai.document.FlightExtractionResult;
@@ -57,6 +60,12 @@ public class TravelDocumentProcessingService {
     private DocumentProcessingOutboxRepository processingJobs;
     @org.springframework.beans.factory.annotation.Autowired
     private DocumentExtractionRoutingService extractionRouting;
+    /** Present only when DOCUMENT_SPLIT_EXTRACTION_ENABLED is true; absent means the single-call path only. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private SplitTourExtractionService splitExtraction;
+    /** Live step shown on the documents screen; absent means the screen keeps its generic "Processing..." text. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private DocumentProgress progress;
     @org.springframework.beans.factory.annotation.Value("${app.document-intelligence.v3.workflow-enabled:false}")
     private boolean v3WorkflowEnabled;
 
@@ -111,6 +120,16 @@ public class TravelDocumentProcessingService {
     // Internal overload that takes the extraction version directly; normal workers resolve the durable job first.
     TravelDocumentProcessingResponse processClaimedDocument(Long documentId, UUID attemptId,
             TourExtractionCodec.Version version) {
+        try {
+            return processWithProgress(documentId, attemptId, version);
+        } finally {
+            if (progress != null) progress.clear(documentId, attemptId);
+        }
+    }
+
+    /** Reports the live steps while the document is processed; the extraction, validation and saving are unchanged. */
+    private TravelDocumentProcessingResponse processWithProgress(Long documentId, UUID attemptId,
+            TourExtractionCodec.Version version) {
         Objects.requireNonNull(attemptId, "Processing attempt ID is required");
         Objects.requireNonNull(version, "Extraction version is required");
         TravelDocument document = travelDocumentRepository.findById(documentId)
@@ -132,6 +151,8 @@ public class TravelDocumentProcessingService {
         String sourceSha256 = null;
         String nativeResult=null;
         DocumentAiInput nativeInput=null;
+        BookingInventory inventory = BookingInventory.empty();
+        report(documentId, attemptId, DocumentProgress.Stage.READING, 0, 0);
         String stage = "storage";
         long stageStarted = System.nanoTime();
         long inputStarted = stageStarted;
@@ -148,7 +169,10 @@ public class TravelDocumentProcessingService {
                 stageStarted = System.nanoTime();
                 org.slf4j.LoggerFactory.getLogger(getClass()).info("Document stage documentId={} stage=classification status=started", documentId);
                 long classificationStarted = stageStarted;
-                documentType = toTravelDocumentType(documentClassifier.classify(aiInput));
+                var classified = classify(aiInput);
+                documentType = toTravelDocumentType(classified.classification());
+                inventory = classified.inventory();
+                if (inventory.count() > 0) report(documentId, attemptId, DocumentProgress.Stage.FOUND, inventory.count(), 0);
                 org.slf4j.LoggerFactory.getLogger(getClass()).info("Document stage documentId={} stage=classification elapsedMs={}",
                         documentId, (System.nanoTime() - classificationStarted) / 1_000_000);
             }
@@ -167,6 +191,7 @@ public class TravelDocumentProcessingService {
                 if (version != TourExtractionCodec.Version.LEGACY && version != TourExtractionCodec.Version.FLIGHT_V1)
                     throw DocumentProcessingException.permanentInput("The selected tour contract does not support flight extraction");
                 FlightExtractionResult result = flightDocumentExtractor.extract(aiInput);
+                report(documentId, attemptId, DocumentProgress.Stage.CHECKING, 0, 0);
                 flightExtractionValidator.validate(result);
                 extractedData = jsonMapper.writeValueAsString(result);
             } else if (documentType == TravelDocumentType.ATTRACTION_TICKET
@@ -183,7 +208,8 @@ public class TravelDocumentProcessingService {
                     if (!"tour-semantic-3.4".equals(TourReading.PROMPT_VERSION))
                         throw DocumentProcessingException.permanentInput("The saved V3.4 extraction contract is unavailable");
                     sourceSha256 = TourExtractionCodec.sourceSha256(aiInput.content());
-                    readingResult = attractionTourDocumentExtractor.extractTourReading(aiInput);
+                    readingResult = extractTourReading(documentId, attemptId, aiInput, inventory);
+                    report(documentId, attemptId, DocumentProgress.Stage.CHECKING, 0, 0);
                     if (readingResult == null || readingResult.provenance() == null
                             || !TourReading.PROMPT_VERSION.equals(readingResult.provenance().promptVersion()))
                         throw new InvalidDocumentExtractionException("Expected V3.4 extraction");
@@ -216,6 +242,7 @@ public class TravelDocumentProcessingService {
         // Close the input before committing success, so a close failure cannot follow a successful commit.
         DocumentProcessingBudget.requireFinalizationTime();
         long finalizeStarted = System.nanoTime();
+        report(documentId, attemptId, DocumentProgress.Stage.SAVING, 0, 0);
         org.slf4j.LoggerFactory.getLogger(getClass()).info("Document stage documentId={} stage=finalization status=started", documentId);
         TravelDocumentProcessingResponse result;
         try {
@@ -238,10 +265,48 @@ public class TravelDocumentProcessingService {
         }
     }
 
+    /** The plain classification unless splitting is configured, in which case tour documents also get an inventory. */
+    private ClassificationResult classify(DocumentAiInput input) {
+        return splitExtraction == null
+                ? ClassificationResult.withoutInventory(documentClassifier.classify(input))
+                : documentClassifier.classifyWithInventory(input);
+    }
+
+    /**
+     * Split extraction only with an inventory from this attempt's own classification. A retry has none (the saved type
+     * skips classification), so after a failed split it runs the single call.
+     */
+    private TourReading extractTourReading(Long documentId, UUID attemptId, DocumentAiInput input, BookingInventory inventory) {
+        String skip = splitExtraction == null ? "disabled" : splitExtraction.skipReason(inventory);
+        org.slf4j.LoggerFactory.getLogger(getClass()).info("Document extraction mode documentId={} mode={} inventoryBookings={} reason={}",
+                documentId, skip == null ? "split" : "single", inventory.count(), skip);
+        if (skip == null) {
+            int found = inventory.count();
+            return splitExtraction.extract(input, inventory,
+                    finished -> report(documentId, attemptId, DocumentProgress.Stage.READING_BOOKINGS, found, finished)).extraction();
+        }
+        report(documentId, attemptId, DocumentProgress.Stage.READING_ONE, 0, 0);
+        return attractionTourDocumentExtractor.extractTourReading(input);
+    }
+
+    /** Records the live step for the documents screen; a missing progress store simply means no live step is shown. */
+    private void report(Long documentId, UUID attemptId, DocumentProgress.Stage stage, int found, int done) {
+        if (progress != null) progress.report(documentId, attemptId, stage, found, done);
+    }
+
+    /**
+     * The trip's documents for the list screen. A document still being processed also carries its live step (stage names and
+     * counts only), shown only for the attempt that is currently running.
+     */
     public List<TravelDocumentSummaryResponse> getDocuments(Long tripId) {
         return travelDocumentRepository.findAllByTrip_IdOrderByUploadedAtDescIdDesc(tripId).stream()
-                .map(TravelDocumentSummaryResponse::from)
+                .map(document -> TravelDocumentSummaryResponse.from(document, liveStep(document)))
                 .toList();
+    }
+
+    private String liveStep(TravelDocument document) {
+        if (progress == null || document.getProcessingStatus() != TravelDocumentProcessingStatus.PROCESSING) return null;
+        return progress.text(document.getId(), document.getProcessingAttemptId()).orElse(null);
     }
 
     public TravelDocumentExtractionResponse getCurrentDocumentExtraction(Long tripId, Long documentId) {

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Remembers, for each document being processed, which step the worker has reached ("Reading your document", "Found 3 bookings",
- * "Reading booking 2 of 3", "Checking the details", "Saving"), so the documents screen can show real progress instead of a
+ * "Read 2 of 3 bookings", "Checking the details", "Saving"), so the documents screen can show real progress instead of a
  * generic "Processing...".
  * <p>
  * Only a step name and two small counts are stored: never any text from the document. A step is shown only while it belongs to
@@ -24,8 +24,10 @@ import org.springframework.stereotype.Component;
 public class DocumentProgress {
 
     /** The steps shown to the user. Each covers the whole period until the next one is reported. */
-    public enum Stage { READING, FOUND, READING_BOOKINGS, CHECKING, SAVING }
+    public enum Stage { READING, FOUND, READING_BOOKINGS, READING_ONE, CHECKING, SAVING }
 
+    /** Wording for a document with a single booking, or one read in a single call: there is no count to show. */
+    private static final String ONE_BOOKING = "Reading your booking";
     /** How long an unfinished entry is kept. */
     static final Duration LIFETIME = Duration.ofMinutes(10);
     /** A safety limit so abandoned entries can never grow without bound. */
@@ -78,8 +80,9 @@ public class DocumentProgress {
     private static String wording(Entry entry) {
         return switch (entry.stage()) {
             case READING -> "Reading your document";
-            case FOUND -> "Found " + entry.found() + (entry.found() == 1 ? " booking" : " bookings");
-            case READING_BOOKINGS -> "Reading booking " + entry.done() + " of " + entry.found();
+            case FOUND -> entry.found() == 1 ? ONE_BOOKING : "Found " + entry.found() + " bookings";
+            case READING_BOOKINGS -> entry.found() == 1 ? ONE_BOOKING : "Read " + entry.done() + " of " + entry.found() + " bookings";
+            case READING_ONE -> ONE_BOOKING;
             case CHECKING -> "Checking the details";
             case SAVING -> "Saving";
         };
